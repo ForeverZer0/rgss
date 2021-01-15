@@ -30,12 +30,15 @@ Gem::Specification.new do |spec|
     `git ls-files -z`.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }
   end
 
+  gemspec.metadata['msys2_mingw_dependencies'] = 'glfw openal sndfile'
+
   spec.bindir        = 'bin'
   spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
   spec.require_paths = ['lib']
 
   spec.add_development_dependency 'rake', '~> 13.0'
   spec.add_development_dependency 'rake-compiler', '~> 1.1'
+  spec.add_development_dependency 'yard', '~> 0.9'
 
   spec.add_runtime_dependency 'ox', '~> 2.14'
 end
