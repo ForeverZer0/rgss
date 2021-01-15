@@ -1,0 +1,6 @@
+---
+BasedOnStyle: Microsoft
+AlignConsecutiveMacros: true
+AlignTrailingComments: true
+IndentCaseLabels: true
+...
