@@ -10,8 +10,6 @@
 #define CLASS_NAME(obj) rb_class2name(CLASS_OF(obj))
 #define STR2SYM(str)    ID2SYM(rb_intern(str))
 
-#define RGSS_DEBUG 1
-
 extern VALUE rb_mRGSS;
 
 extern VALUE rb_mGLFW;
@@ -186,7 +184,7 @@ static inline VALUE RGSS_Vec4_New(float x, float y, float z, float w)
     return Data_Wrap_Struct(rb_cVec4, NULL, free, v);
 }
 
-static inline void *rpg_value_ptr(VALUE value)
+static inline void *RGSS_ValuePointer(VALUE value)
 {
     if (value == Qnil)
         return NULL;
@@ -206,7 +204,7 @@ static inline void *rpg_value_ptr(VALUE value)
 VALUE RGSS_Color_New(VALUE klass, float r, float g, float b, float a);
 void RGSS_Image_Load(const char *path, int *width, int *height, unsigned char **pixels);
 
-#define RB2PTR(value) rpg_value_ptr(value)
+#define RB2PTR(value) RGSS_ValuePointer(value)
 
 #define RGSS_DEFINE_DUMP(type)                                                                                          \
     static VALUE type##_Dump(int argc, VALUE *argv, VALUE self)                                                        \

@@ -17,7 +17,7 @@ static VALUE RGSS_Math_Degrees(VALUE math, VALUE radians)
     return DBL2NUM(NUM2DBL(radians) * (180.0 / M_PI));
 }
 
-void Init_open_rpg(void) {
+void Init_rgss(void) {
     rb_mRGSS = rb_define_module("RGSS");
 
     rb_define_module_function1(rb_mMath, "degrees", RGSS_Math_Degrees, 1);
