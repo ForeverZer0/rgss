@@ -25,7 +25,7 @@ require_relative 'rgss/rgss'
 
 require_relative 'rgss/game_object'
 require_relative 'rgss/shader'
-require_relative 'rgss/texture'
+# require_relative 'rgss/texture'
 
 require_relative 'rgss/blend'
 require_relative 'rgss/batch'
@@ -99,14 +99,18 @@ module RGSS
   $v.back_color = Color::BLACK
   $v.position = vec2(400, 100)
 
+  GL.glPixelStorei(GL::GL_UNPACK_ALIGNMENT, 1)
+
+  fog_tex = Texture.load('/storage/images/RTP/XP/Graphics/Fogs/001-Fog01.png')
+
   # $v.angle = 23
   $fog = Plane.new
-  $fog.texture = Texture.load('/storage/images/RTP/XP/Graphics/Fogs/001-Fog01.png')
+  $fog.texture = fog_tex
   $fog.size = Size.new(400, 400)
   $fog.scroll = vec2(24.0, 32.0)
   $fog.opacity = 0.5
  
-  
+ 
   # $sprite = Sprite.new($v)
   # $sprite.texture = Texture.load('/home/eric/Desktop/TimeFantasy_PCK/Characters/!$fireplace.png')
 
@@ -123,6 +127,7 @@ regular <b>bold</b> <i>italic</i> <u>underline</u> <span overline="single">overl
   EOS
 
   size = font.measure(markup)
+  p size
   baked = font.bake(markup, size, align: Font::ALIGN_CENTER, valign: 2)
   tex = Texture.new(size.width, size.height, baked, format: GL::GL_RED, internal: GL::GL_RED)
 

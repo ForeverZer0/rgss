@@ -28,6 +28,7 @@ extern VALUE rb_cImage;
 
 
 extern VALUE rb_cEntity;
+extern VALUE rb_cTexture;
 extern VALUE rb_cFont;
 
 extern VALUE rb_cColor;
@@ -56,6 +57,7 @@ void RGSS_Init_Mat4(VALUE parent);
 void RGSS_Init_Batch(VALUE parent);
 void RGSS_Init_Entity(VALUE parent);
 void RGSS_Init_Font(VALUE parent);
+void RGSS_Init_Texture(VALUE parent);
 
 VALUE RGSS_Handle_Alloc(VALUE klass);
 

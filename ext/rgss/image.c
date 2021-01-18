@@ -71,6 +71,9 @@ static VALUE RGSS_Image_GetPixels(VALUE self)
 
 void RGSS_Image_Load(const char *path, int *width, int *height, unsigned char **pixels)
 {
+    // TODO: Confirm path
+    
+
     *pixels = stbi_load(path, width, height, NULL, COMPONENT_COUNT);
     if (pixels == NULL)
         rb_raise(rb_eRuntimeError, "failed to load image");

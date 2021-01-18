@@ -36,6 +36,7 @@ void Init_rgss(void) {
     RGSS_Init_Vectors(rb_mRGSS);
     RGSS_Init_Mat4(rb_mRGSS);
     RGSS_Init_Entity(rb_mRGSS);
+    RGSS_Init_Texture(rb_mRGSS);
     RGSS_Init_Font(rb_mRGSS);
 
     rb_define_const(rb_mRGSS, "SIZEOF_VOIDP",  INT2NUM(SIZEOF_VOIDP)); 
