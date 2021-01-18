@@ -12,7 +12,7 @@ module RGSS
     attr_accessor :flip
 
     def initialize(*args, **opts)
-      super(opts[:viewport]&.batch || Graphics.batch)
+      super(opts[:viewport]&.batch || Graphics.batch, **opts)
       vertex_setup
       @flip = FLIP_NONE
       self.texture = nil

@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+
+require 'rgss'
+
+# TODO
+
+Game.create(1024, 768, 'RGSS')
+Game.main
+Game.terminate

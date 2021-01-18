@@ -33,20 +33,6 @@ static void RGSS_Game_ErrorCallback(int code, const char *message)
     }
 }
 
-static inline void RGSS_Game_ParseOpt(VALUE opts, const char *name, int ifnone, int *result)
-{
-    if (result == NULL)
-        return;
-
-    if (opts == Qnil)
-        *result = ifnone;
-    else
-    {
-        VALUE opt = rb_hash_aref(opts, STR2SYM(name));
-        *result = (opt == Qnil) ? ifnone : RTEST(opt);
-    }
-}
-
 static void RGSS_Game_CloseCallback(GLFWwindow *window)
 {
     VALUE ary = rb_iv_get(rb_mGame, IVAR_CLOSING);
@@ -158,14 +144,14 @@ static VALUE RGSS_Game_Create(int argc, VALUE *argv, VALUE game)
         rb_raise(rb_eArgError, "height must be greater than 0");
 
     int resizable, fullscreen, vsync, topmost, decorated, visible, locked, debug;
-    RGSS_Game_ParseOpt(opts, "resizable", GLFW_FALSE, &resizable);
-    RGSS_Game_ParseOpt(opts, "fullscren", GLFW_FALSE, &fullscreen);
-    RGSS_Game_ParseOpt(opts, "vsync", GLFW_TRUE, &vsync);
-    RGSS_Game_ParseOpt(opts, "topmost", GLFW_FALSE, &topmost);
-    RGSS_Game_ParseOpt(opts, "decorated", GLFW_TRUE, &decorated);
-    RGSS_Game_ParseOpt(opts, "visible", GLFW_TRUE, &visible);
-    RGSS_Game_ParseOpt(opts, "locked", GLFW_FALSE, &locked);
-    RGSS_Game_ParseOpt(opts, "debug", GLFW_FALSE, &RGSS_GAME.debug);
+    RGSS_ParseOpt(opts, "resizable", GLFW_FALSE, &resizable);
+    RGSS_ParseOpt(opts, "fullscren", GLFW_FALSE, &fullscreen);
+    RGSS_ParseOpt(opts, "vsync", GLFW_TRUE, &vsync);
+    RGSS_ParseOpt(opts, "topmost", GLFW_FALSE, &topmost);
+    RGSS_ParseOpt(opts, "decorated", GLFW_TRUE, &decorated);
+    RGSS_ParseOpt(opts, "visible", GLFW_TRUE, &visible);
+    RGSS_ParseOpt(opts, "locked", GLFW_FALSE, &locked);
+    RGSS_ParseOpt(opts, "debug", GLFW_FALSE, &RGSS_GAME.debug);
 
     glfwDefaultWindowHints();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);

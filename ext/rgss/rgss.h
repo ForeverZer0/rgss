@@ -1,5 +1,5 @@
-#ifndef RB_RGSS_H
-#define RB_RGSS_H 1
+#ifndef RGSS_H
+#define RGSS_H 1
 
 #include <errno.h>
 #include <ruby.h>
@@ -28,7 +28,7 @@ extern VALUE rb_cImage;
 
 
 extern VALUE rb_cEntity;
-extern VALUE rb_cTrueType;
+extern VALUE rb_cFont;
 
 extern VALUE rb_cColor;
 extern VALUE rb_cPoint;
@@ -50,16 +50,17 @@ void RGSS_Init_Input(VALUE parent);
 void RGSS_Init_ColorAndTone(VALUE parent);
 void RGSS_Init_PointAndSize(VALUE parent);
 void RGSS_Init_Rect(VALUE parent);
-void RGSS_Init_Vec2(VALUE parent);
-void RGSS_Init_Vec3(VALUE parent);
-void RGSS_Init_Vec4(VALUE parent);
+void RGSS_Init_Vectors(VALUE parent);
 void RGSS_Init_Mat4(VALUE parent);
 
 void RGSS_Init_Batch(VALUE parent);
 void RGSS_Init_Entity(VALUE parent);
-void RGSS_Init_TrueType(VALUE parent);
+void RGSS_Init_Font(VALUE parent);
 
 VALUE RGSS_Handle_Alloc(VALUE klass);
+
+
+#define RGSS_HAS_FLAG(value, flag) (((value) & (flag)) != 0)
 
 typedef vec4 RGSS_Color;
 typedef vec4 RGSS_Tone;
@@ -238,4 +239,4 @@ void RGSS_Image_Load(const char *path, int *width, int *height, unsigned char **
 #define RGSS_MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define RGSS_MIN(a, b) (((a) < (b)) ? (a) : (b))
 
-#endif /* RB_RGSS_H */
+#endif /* RGSS_H */

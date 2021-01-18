@@ -33,6 +33,7 @@ require_relative 'rgss/renderable'
 require_relative 'rgss/sprite'
 require_relative 'rgss/viewport'
 require_relative 'rgss/plane'
+require_relative 'rgss/font'
 
 
 module RGSS
@@ -44,12 +45,11 @@ module RGSS
 
     def self.update(delta)
 
-      $sprite.cy += 1 if Game.ticks % 8 == 0
 
-      $v.y -= SPEED if Input.press?(:UP)
-      $v.y += SPEED if Input.press?(:DOWN)
-      $v.x -= SPEED if Input.press?(:LEFT)
-      $v.x += SPEED if Input.press?(:RIGHT)
+      $sprite.y -= SPEED if Input.press?(:UP)
+      $sprite.y += SPEED if Input.press?(:DOWN)
+      $sprite.x -= SPEED if Input.press?(:LEFT)
+      $sprite.x += SPEED if Input.press?(:RIGHT)
       $fog.zoom += vec2(0.05) if Input.press?(:RAISE)
       $fog.zoom -= vec2(0.05) if Input.press?(:LOWER)
 
@@ -76,8 +76,8 @@ module RGSS
   end
 
 
-  Game.create(256, 256, "RGSS", resizable: true, vsync: true)
-  Graphics.back_color = Color::CORNFLOWER_BLUE
+  Game.create(1024, 768, "RGSS", resizable: true, vsync: true)
+  Graphics.back_color = Color::DARK_SLATE_GRAY
 
 
   Game.icon = '/storage/images/anvil.png'
@@ -95,45 +95,42 @@ module RGSS
   Input.bind(:QUIT, Input::KEY_ESCAPE)
 
   Input.cursor_image('/home/eric/Desktop/cursor.png')
-  $v = Viewport.new(1, 1, 128, 128)
+  $v = Viewport.new(1, 1, 256, 256)
   $v.back_color = Color::BLACK
+  $v.position = vec2(400, 100)
 
-  $v.angle = 23
-  
+  # $v.angle = 23
   $fog = Plane.new
-  $fog.texture = Texture.new('/storage/images/RTP/XP/Graphics/Fogs/001-Fog01.png')
+  $fog.texture = Texture.load('/storage/images/RTP/XP/Graphics/Fogs/001-Fog01.png')
   $fog.size = Size.new(400, 400)
   $fog.scroll = vec2(24.0, 32.0)
   $fog.opacity = 0.5
-
-  tex = Texture.new('/home/eric/Desktop/TimeFantasy_PCK/Characters/!$fireplace.png')
+ 
   
-  w = tex.width / 3
-  h = tex.height
-  region = Rect.new(w, 0, w, h)
+  # $sprite = Sprite.new($v)
+  # $sprite.texture = Texture.load('/home/eric/Desktop/TimeFantasy_PCK/Characters/!$fireplace.png')
+
+  # font = Font.new('/home/eric/Desktop/Fonts/comic.ttf')
+  # font = Font.new('/home/eric/Desktop/Fonts/consola.ttf')
 
 
-  $sprite = SpriteAtlas.new(region: region, rows: 4, columns: 1)
+  font = Font.new('Times', 32)
+  markup = <<-EOS
+regular <b>bold</b> <i>italic</i> <u>underline</u> <span overline="single">overline</span>
+<s>strikethrough</s> <tt>monospace</tt> <b><u>bold underline</u></b> 
+<span font_style="oblique">oblique</span> <small>smaller</small> <big>bigger</big> <sup>superscript</sup> <sub>subscript</sub>
+<span font="Comic Sans MS">Mid-string font change</span>
+  EOS
+
+  size = font.measure(markup)
+  baked = font.bake(markup, size, align: Font::ALIGN_CENTER, valign: 2)
+  tex = Texture.new(size.width, size.height, baked, format: GL::GL_RED, internal: GL::GL_RED)
+
+  $sprite = TextSprite.new()
   $sprite.texture = tex
-
-  font = TrueType.new('/home/eric/Desktop/dev/NotoSansMono-Regular.ttf')
-  p font.scale(12, mode: :em)
-
-  # tex.fill_rect(Rect.new(32, 32, 32, 32), Color::RED)
-  # $sprite.scale = vec2(1, 1)
-  # $sprite.velocity = vec2(64, 0)
-  # $sprite.angle = 45
-  # $sprite.pivot = vec3(16, 16, 0)
-  # $sprite.scale = vec2(2, 2)
-
-
-  # $v.angle = 45
+  $sprite.color = Color::WHITE
 
   Game.speed = 1.0
-
-  
-
-
   Game.main(30)
   Game.terminate
 

@@ -33,12 +33,10 @@ void Init_rgss(void) {
     RGSS_Init_ColorAndTone(rb_mRGSS);
     RGSS_Init_PointAndSize(rb_mRGSS);
     RGSS_Init_Rect(rb_mRGSS);
-    RGSS_Init_Vec2(rb_mRGSS);
-    RGSS_Init_Vec3(rb_mRGSS);
-    RGSS_Init_Vec4(rb_mRGSS);
+    RGSS_Init_Vectors(rb_mRGSS);
     RGSS_Init_Mat4(rb_mRGSS);
     RGSS_Init_Entity(rb_mRGSS);
-    RGSS_Init_TrueType(rb_mRGSS);
+    RGSS_Init_Font(rb_mRGSS);
 
     rb_define_const(rb_mRGSS, "SIZEOF_VOIDP",  INT2NUM(SIZEOF_VOIDP)); 
     rb_define_const(rb_mRGSS, "SIZEOF_CHAR",  INT2NUM(1)); 

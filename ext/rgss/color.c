@@ -53,6 +53,15 @@ static VALUE RGSS_Tone_Initialize(int argc, VALUE *argv, VALUE self)
     return self;
 }
 
+static VALUE RGSS_Color_GetCSS(VALUE self)
+{
+    float *color = DATA_PTR(self);
+    unsigned char r = (unsigned char) roundf(color[0] * 255.0f);        
+    unsigned char g = (unsigned char) roundf(color[1] * 255.0f);
+    unsigned char b = (unsigned char) roundf(color[2] * 255.0f);
+    return rb_sprintf("#%02X%02X%02X", r, g, b);
+}
+
 static VALUE RGSS_Color_GetRed(VALUE self)
 {
     return DBL2NUM(((float *)DATA_PTR(self))[0]);
@@ -405,6 +414,7 @@ void RGSS_Init_ColorAndTone(VALUE parent)
     rb_define_methodm1(rb_cColor, "inverse", RGSS_Color_Inverse, -1);
     rb_define_methodm1(rb_cColor, "_dump", RGSS_Color_Dump, -1);
 
+    rb_define_method0(rb_cColor, "css", RGSS_Color_GetCSS, 0);
     rb_define_method0(rb_cColor, "hue", RGSS_Color_GetHue, 0);
     rb_define_method0(rb_cColor, "saturation", RGSS_Color_GetSaturation, 0);
     rb_define_method0(rb_cColor, "lightness", RGSS_Color_GetLightness, 0);

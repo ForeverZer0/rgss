@@ -458,6 +458,9 @@ static void RGSS_Input_TextCallback(GLFWwindow *window, unsigned int codepoint)
         return;
     }
 
+    // TODO: Cache and fire during update?
+    // Just do a begin/end text capture class or method/block?
+
     size_t size = utf8codepointcalcsize(&codepoint);
 
     VALUE args = rb_utf8_str_new((char *)&codepoint, size);

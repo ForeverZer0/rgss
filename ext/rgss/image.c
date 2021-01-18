@@ -149,49 +149,9 @@ static VALUE RGSS_Image_GetAddress(VALUE self)
     return PTR2NUM(image->pixels);
 }
 
-static inline size_t RGSS_Image_GetOffset(GLFWimage *image, int x, int y)
+int RGSS_Image_SavePNG(const char *filename, int width, int height, unsigned char *pixels)
 {
-    if (image->pixels == NULL)
-        rb_raise(rb_eArgError, "disposed image");
-
-    if (x < 0 || x >= image->width)
-        rb_raise(rb_eIndexError, "x value out of range (given %d, expected 0..%d)", x, image->width - 1);
-    if (y < 0 || y >= image->height)
-        rb_raise(rb_eIndexError, "y value out of range (given %d, expected 0..%d)", y, image->height - 1);
-
-    return (x * BYTES_PER_PIXEL) + (y * image->width * BYTES_PER_PIXEL);
-}
-
-static VALUE RGSS_Image_GetPixel(VALUE self, VALUE x, VALUE y)
-{
-    GLFWimage *image = DATA_PTR(self);
-    size_t i = RGSS_Image_GetOffset(image, NUM2INT(x), NUM2INT(y));
-
-    float *color = xmalloc(sizeof(float) * 4);
-    color[0] = image->pixels[i + 0] / 255.0f;
-    color[1] = image->pixels[i + 1] / 255.0f;
-    color[2] = image->pixels[i + 2] / 255.0f;
-    color[3] = image->pixels[i + 3] / 255.0f; 
-    return Data_Wrap_Struct(rb_cColor, NULL, RUBY_DEFAULT_FREE, color);   
-}
-
-static VALUE RGSS_Image_SetPixel(VALUE self, VALUE x, VALUE y, VALUE color)
-{
-    GLFWimage *image = DATA_PTR(self);
-    size_t i = RGSS_Image_GetOffset(image, NUM2INT(x), NUM2INT(y));
-    
-    if (RTEST(color))
-    {
-        float *vec = DATA_PTR(color);
-        image->pixels[i + 0] = (unsigned char) roundf(vec[0] * 255.0f);
-        image->pixels[i + 1] = (unsigned char) roundf(vec[1] * 255.0f);
-        image->pixels[i + 2] = (unsigned char) roundf(vec[2] * 255.0f);
-        image->pixels[i + 3] = (unsigned char) roundf(vec[3] * 255.0f);
-    }
-    else
-        memset(&image->pixels[i], 0, BYTES_PER_PIXEL);
-
-    return self;
+    return stbi_write_png(filename, width, height, COMPONENT_COUNT, pixels, width * COMPONENT_COUNT);
 }
 
 static VALUE RGSS_Image_Save(int argc, VALUE *argv, VALUE self)
@@ -263,9 +223,6 @@ void RGSS_Init_Image(VALUE parent)
     rb_define_method0(rb_cImage, "height", RGSS_Image_GetHeight, 0);
     rb_define_method0(rb_cImage, "pixels", RGSS_Image_GetPixels, 0);
     rb_define_method0(rb_cImage, "address", RGSS_Image_GetAddress, 0);
-    rb_define_method2(rb_cImage, "get_pixel", RGSS_Image_GetPixel, 2);
-    rb_define_method3(rb_cImage, "set_pixel", RGSS_Image_SetPixel, 3);
-
     rb_define_methodm1(rb_cImage, "save", RGSS_Image_Save, -1);
 
     rb_define_alias(rb_cImage, "columns", "width");

@@ -1,53 +1,62 @@
 require 'mkmf'
+require 'fiddle'
 
-require "mkmf"
-require 'fileutils'
-require 'rubygems/package'
-require 'zlib'
-
+CGLM_SHA256  = 'c96dd8a6f1d9aedb7ac02fe6bafd2a3a625a19e62bc18d455faf9c6825e9bd7b'
 CGLM_VERSION = '0.7.9'
-cglm_source_url = "https://github.com/recp/cglm/archive/v#{CGLM_VERSION}.tar.gz"
-cglm_tar_gz = File.expand_path("cglm-v#{CGLM_VERSION}.tar.gz", __dir__)
-cglm_dir = File.expand_path("cglm-#{CGLM_VERSION }", __dir__)
+CGLM_URL     = "https://github.com/recp/cglm/archive/v#{CGLM_VERSION}.tar.gz"
+CGLM_TAR_GZ  = File.expand_path("cglm-v#{CGLM_VERSION}.tar.gz", __dir__)
+CGLM_DIR     = File.expand_path("cglm-#{CGLM_VERSION }", __dir__)
 
 # fetch cglm unless it's already on the file system
-unless File.exist?(cglm_dir)
+unless Dir.exist?(CGLM_DIR)
+
   require 'open-uri'
-  # save tarfile
-  open(cglm_tar_gz, 'wb') do |file|
-    file << URI.open(cglm_source_url, 'rb').read
+  require 'digest'
+  require 'fileutils'
+  require 'rubygems/package'
+  require 'zlib'
+
+  # Fetch tarball
+  open(CGLM_TAR_GZ, 'wb') do |file|
+    file << URI.open(CGLM_URL, 'rb').read
   end
 
-  # extract tarfile
-  FileUtils.rm_rf cglm_dir if File.directory?(cglm_dir)
-  FileUtils.mkdir_p cglm_dir
-  tar_extract = Gem::Package::TarReader.new(Zlib::GzipReader.open(cglm_tar_gz))
-  tar_extract.rewind # The extract has to be rewinded after every iteration
-  tar_extract.each do |entry|
-    full_path = File.expand_path(entry.full_name, __dir__)
-    if entry.directory?
-      FileUtils.mkdir_p full_path
-    else
-      FileUtils.mkdir_p File.dirname(full_path)
-      File.open(full_path, 'wb') { |file| file << entry.read }
+  # Check file integrity
+  sha256 = Digest::SHA256.file(CGLM_TAR_GZ)
+  abort("invalid checksum for '#{CGLM_TAR_GZ}'") unless sha256 == CGLM_SHA256
+
+  # Extract TAR archive
+  FileUtils.rm_rf(CGLM_DIR) if File.directory?(CGLM_DIR)
+  FileUtils.mkdir_p(CGLM_DIR)
+  Gem::Package::TarReader.new(Zlib::GzipReader.open(CGLM_TAR_GZ)) do |tar|
+    tar.rewind
+    tar.each do |entry|
+      path = File.expand_path(entry.full_name, __dir__)
+      if entry.directory?
+        FileUtils.mkdir_p(path)
+      else
+        FileUtils.mkdir_p(File.dirname(path))
+        File.open(path, 'wb') { |file| file << entry.read }
+      end
     end
   end
-  tar_extract.close
+  FileUtils.remove_file(CGLM_TAR_GZ, true) rescue nil
 end
 
-$INCFLAGS << " -I#{cglm_dir}/include"
+$INCFLAGS << " -I#{CGLM_DIR}/include"
 
-require 'fiddle'
-%w(
+%i(
   SIZEOF_VOIDP SIZEOF_CHAR SIZEOF_SHORT SIZEOF_INT SIZEOF_LONG SIZEOF_LONG_LONG
   SIZEOF_FLOAT SIZEOF_DOUBLE SIZEOF_SIZE_T SIZEOF_SSIZE_T SIZEOF_PTRDIFF_T
   SIZEOF_INTPTR_T SIZEOF_UINTPTR_T
-).each do |const_name|
-  if Fiddle.constants.include?(const_name.to_sym)
-    $CFLAGS << " -DHAVE_#{const_name}=1 -D#{const_name}=#{Fiddle.const_get(const_name.to_sym)}"
-  end
+).each do |const|
+  next unless Fiddle.constants.include?(const)
+  $CFLAGS << " -DHAVE_#{const}=1 -D#{const}=#{Fiddle.const_get(const)}"
 end
 
-find_library('glfw', 'glfwInit')
+pkg_config('glfw3')
+pkg_config('pangoft2')
+pkg_config('sndfile')
+pkg_config('openal')
 
 create_makefile("rgss/rgss")

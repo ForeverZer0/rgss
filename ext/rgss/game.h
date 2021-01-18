@@ -1,3 +1,6 @@
+#ifndef RGSS_GAME_H
+#define RGSS_GAME_H 1
+
 #include "rgss.h"
 
 #define GLFW_INCLUDE_NONE 1
@@ -95,5 +98,25 @@ void RGSS_Input_Deinit(GLFWwindow *window);
 void RGSS_Input_Update(void);
 
 void RGSS_Image_Free(void *img);
+void RGSS_Image_SavePNG(const char *filename, int width, int height, unsigned char *pixels);
 
 extern RGSS_Game RGSS_GAME;
+
+static inline void RGSS_ParseOpt(VALUE opts, const char *name, int ifnone, int *result)
+{
+    if (result == NULL)
+        return;
+
+    if (opts == Qnil)
+        *result = ifnone;
+    else
+    {
+        VALUE opt = rb_hash_aref(opts, STR2SYM(name));
+        if (FIXNUM_P(opt))
+            *result = NUM2INT(opt);
+        else
+            *result = (opt == Qnil) ? ifnone : RTEST(opt);
+    }
+}
+
+#endif /* RGSS_GAME_H */
