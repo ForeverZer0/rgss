@@ -34,6 +34,21 @@
         return Data_Wrap_Struct(klass, NULL, free, v);                                                                 \
     }
 
+typedef enum {
+    RGSS_FLIP_NONE = 0x00,
+    RGSS_FLIP_X = 0x01,
+    RGSS_FLIP_Y = 0x02,
+    RGSS_FLIP_BOTH = (RGSS_FLIP_X | RGSS_FLIP_Y)
+} RGSS_Flip;
+
+typedef struct
+{
+    GLuint id;
+    GLuint fbo;
+    int width;
+    int height;
+} RGSS_Texture;
+
 typedef struct
 {
     GLenum op;
@@ -62,6 +77,7 @@ typedef struct
     float opacity;
     int visible;
     float hue;
+    RGSS_Flip flip;
     RGSS_Color flash_color;
     int flash_duration;
     RGSS_Blend blend;

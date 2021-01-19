@@ -5,18 +5,24 @@
 #define VERTICES_STRIDE (SIZEOF_FLOAT * 4)
 #define INDICES_COUNT   6
 
+ID RGSS_ID_UPDATE_VERTICES;
+ID RGSS_ID_BATCH;
+
 #define RGSS_SHADER RGSS_GAME.graphics.shader
 
 VALUE rb_cEntity;
 VALUE rb_cRenderable;
 VALUE rb_cBlend;
+VALUE rb_cViewport;
+VALUE rb_cSprite;
 
 vec3 AXIS_Z = {0.0f, 0.0f, 1.0f};
 
 typedef struct
 {
     RGSS_Renderable base;
-
+    VALUE texture;
+    RGSS_Rect src_rect;
 } RGSS_Sprite;
 
 // TODO: Use direct pointer with RUBY_NEVER_FREE instead of new vector?
@@ -279,6 +285,9 @@ static VALUE RGSS_Entity_SetSize(VALUE self, VALUE value)
     vec3 vec;
     RGSS_Entity_ParseArg(value, vec);
 
+    if (rb_respond_to(self, RGSS_ID_UPDATE_VERTICES))
+        rb_funcall2(self, RGSS_ID_UPDATE_VERTICES, 0, NULL);
+
     glm_vec3_copy(vec, entity->size);
     return value;
 }
@@ -365,9 +374,23 @@ static VALUE RGSS_Renderable_Alloc(VALUE klass)
 static VALUE RGSS_Renderable_Initialize(VALUE self, VALUE parent)
 {
     if (NIL_P(parent))
-        rb_raise(rb_eArgError, "parent cannot be nil");
-    if (rb_obj_is_kind_of(parent, rb_cBatch) != Qtrue)
-        rb_raise(rb_eTypeError, "%s is not a Batch", CLASS_NAME(parent));
+    {
+        parent = rb_funcall2(rb_mGraphics, RGSS_ID_BATCH, 0, NULL);
+    }
+    else if (rb_obj_is_kind_of(parent, rb_cViewport))
+    {
+        if (rb_obj_is_kind_of(self, rb_cViewport))
+            rb_raise(rb_eRuntimeError, "a Viewport cannot be child of another Viewport");
+        parent = rb_funcall2(rb_mGraphics, RGSS_ID_BATCH, 0, NULL);
+    }
+    else if (rb_obj_is_kind_of(parent, rb_cBatch) != Qtrue)
+    {
+        rb_raise(rb_eTypeError, "parent must be a Viewport, Batch, or NilClass");
+    }
+
+    // Indicates the Viewport or Graphics batch was nil, which should never be
+    if (NIL_P(parent))
+        rb_raise(rb_eRuntimeError, "an internal error occurred, please report this issue on GitHub");
 
     RGSS_Renderable *obj = DATA_PTR(self);
     RGSS_Renderable_Init(obj);
@@ -644,6 +667,31 @@ static VALUE RGSS_Renderable_VertexSetup(int argc, VALUE *argv, VALUE self)
     return Qnil;
 }
 
+static VALUE RGSS_Renderable_UpdateBuffer(VALUE self, VALUE vertices)
+{
+    if (vertices != Qnil && rb_array_len(vertices) != VERTICES_COUNT)
+        rb_raise(rb_eArgError, "number of vertices does not match VERTICES_SIZE");
+
+    RGSS_Renderable *obj = DATA_PTR(self);
+    glBindBuffer(GL_ARRAY_BUFFER, obj->vbo);
+
+    if (vertices == Qnil)
+    {
+        glBufferSubData(GL_ARRAY_BUFFER, 0, VERTICES_SIZE, NULL);
+    }
+    else
+    {
+        GLfloat verts[VERTICES_COUNT];
+        for (long i = 0; i < VERTICES_COUNT; i++)
+            verts[i] = NUM2FLT(rb_ary_entry(vertices, i));
+        
+        glBufferSubData(GL_ARRAY_BUFFER, 0, VERTICES_SIZE, verts);
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
+    return Qnil;
+}
+
+
 static VALUE RGSS_Renderable_GetVAO(VALUE self)
 {
     return UINT2NUM(((RGSS_Renderable *)DATA_PTR(self))->vao);
@@ -676,6 +724,171 @@ static VALUE RGSS_Renderable_Render(VALUE self, VALUE alpha)
     glUniform4fv(RGSS_SHADER.flash, 1, obj->flash_color);
     glUniform1f(RGSS_SHADER.hue, obj->hue);
     glUniform1f(RGSS_SHADER.opacity, obj->opacity);
+}
+
+static VALUE RGSS_Renderable_GetFlip(VALUE self)
+{
+    RGSS_Renderable *obj = DATA_PTR(self);
+    return INT2NUM(obj->flip);
+}
+
+static VALUE RGSS_Renderable_SetFlip(VALUE self, VALUE flip)
+{
+    RGSS_Renderable *obj = DATA_PTR(self);
+    int value = NUM2INT(flip);
+    if (value != obj->flip)
+    {
+        obj->flip = NUM2INT(flip);
+        if (rb_respond_to(self, RGSS_ID_UPDATE_VERTICES))
+            rb_funcall2(self, RGSS_ID_UPDATE_VERTICES, 0, NULL);
+    }
+    return flip;
+}
+
+static VALUE RGSS_Sprite_UpdateVertices(VALUE self)
+{
+    RGSS_Sprite *sprite = DATA_PTR(self);
+    RGSS_Texture *tex = RTEST(sprite->texture) ? DATA_PTR(sprite->texture) : NULL;
+    if (tex == NULL)
+        return Qnil;
+
+    GLfloat l = (GLfloat) sprite->src_rect.x / (GLfloat) tex->width;
+    GLfloat t = (GLfloat) sprite->src_rect.y / (GLfloat) tex->height;
+    GLfloat r = (GLfloat) sprite->src_rect.width / (GLfloat) tex->width;
+    GLfloat b = (GLfloat) sprite->src_rect.height / (GLfloat) tex->height;
+
+    if (RGSS_HAS_FLAG(sprite->base.flip, RGSS_FLIP_X))
+    {
+        GLfloat temp_l = l;
+        l = r;
+        r = temp_l;
+    }
+
+    if (RGSS_HAS_FLAG(sprite->base.flip, RGSS_FLIP_Y))
+    {
+        GLfloat temp_t = t;
+        t = b;
+        b = temp_t;
+    }
+
+    GLfloat vertices[VERTICES_COUNT] =
+    {
+        0.0f, 1.0f, l, b, // Bottom-Left
+        1.0f, 0.0f, r, t, // Top-Right
+        0.0f, 0.0f, l, t, // Top-Left
+        1.0f, 1.0f, r, b, // Bottom-Right
+    };
+
+    glBindBuffer(GL_ARRAY_BUFFER, sprite->base.vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, VERTICES_SIZE, vertices);
+    glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
+
+    return Qnil;
+}
+
+static VALUE RGSS_Sprite_GetSrcRect(VALUE self)
+{
+    RGSS_Sprite *sprite = DATA_PTR(self);
+    RGSS_Rect *rect = ALLOC(RGSS_Rect);
+    memcpy(rect, &sprite->src_rect, sizeof(RGSS_Rect));
+    return Data_Wrap_Struct(rb_cRect, NULL, RUBY_DEFAULT_FREE, rect);
+}
+
+static VALUE RGSS_Sprite_SetSrcRect(VALUE self, VALUE rect)
+{
+    RGSS_Sprite *sprite = DATA_PTR(self);
+    if (NIL_P(rect))
+    {
+        sprite->src_rect = (RGSS_Rect) { 0, 0, 0, 0 };
+        glm_vec3_zero(sprite->base.entity.size);
+    }
+    else
+    {
+        RGSS_Rect *r = DATA_PTR(rect);
+        memcpy(&sprite->src_rect, r, sizeof(RGSS_Rect));
+        sprite->base.entity.size[0] = (float) r->width;
+        sprite->base.entity.size[1] = (float) r->height;
+    }
+    RGSS_Sprite_UpdateVertices(self);
+    return rect;
+}
+
+static VALUE RGSS_Sprite_GetTexture(VALUE self)
+{
+    RGSS_Sprite *sprite = DATA_PTR(self);
+    return sprite->texture;
+}
+
+static VALUE RGSS_Sprite_SetTexture(VALUE self, VALUE texture)
+{
+    RGSS_Sprite *sprite = DATA_PTR(self);
+    sprite->texture = texture;
+
+    if (NIL_P(texture))
+    {
+        glm_vec3_zero(sprite->base.entity.size);
+        sprite->src_rect = (RGSS_Rect) { 0, 0, 0, 0 };
+    }
+    else
+    {
+        RGSS_Texture *tex = DATA_PTR(texture);
+        sprite->src_rect = (RGSS_Rect) { 0, 0, tex->width, tex->height };
+        sprite->base.entity.size[0] = (float) tex->width;
+        sprite->base.entity.size[1] = (float) tex->height;
+        RGSS_Sprite_UpdateVertices(self);
+    }
+}
+
+static VALUE RGSS_Sprite_Initialize(int argc, VALUE *argv, VALUE self)
+{
+
+    // TODO: Delete this
+    VALUE vp, opts;
+    rb_scan_args(argc, argv, "01:", &vp, &opts);
+
+    if (RTEST(vp))
+    {
+        // RGSS_Graphics_GetBatch(rb_mGraphics);
+    }
+
+    RGSS_Renderable_VertexSetup(0, NULL, self);
+    // TODO
+}
+
+static void RGSS_Sprite_Mark(void *data)
+{
+    RGSS_Sprite *sprite = data;
+    rb_gc_mark(sprite->texture);
+}
+
+static VALUE RGSS_Sprite_Alloc(VALUE klass)
+{
+    RGSS_Sprite *sprite = ALLOC(RGSS_Sprite);
+    memset(sprite, 0, sizeof(RGSS_Sprite));
+    RGSS_Enity_Init(&sprite->base.entity);
+    sprite->texture = Qnil;
+    return Data_Wrap_Struct(klass, RGSS_Sprite_Mark, RUBY_DEFAULT_FREE, sprite);
+}
+
+static VALUE RGSS_Sprite_Render(VALUE self, VALUE alpha)
+{
+    RGSS_Sprite *sprite = DATA_PTR(self);
+    if (NIL_P(sprite->texture) || !sprite->base.visible || sprite->base.opacity < FLT_EPSILON)
+        return Qnil;
+
+    
+    rb_call_super(1, &alpha);
+
+    RGSS_Texture *tex = DATA_PTR(sprite->texture);
+    if (tex->id == 0)
+        rb_raise(rb_eRuntimeError, "disposed texture");
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex->id);
+    glBindVertexArray(sprite->base.vao);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_BYTE, NULL);
+    glBindVertexArray(GL_NONE);
+    return Qnil;
 }
 
 static VALUE RGSS_Blend_Alloc(VALUE klass)
@@ -774,17 +987,26 @@ void RGSS_Init_Entity(VALUE parent)
     rb_define_method0(rb_cRenderable, "flashing?", RGSS_Renderable_IsFlashing, 0);
     rb_define_method0(rb_cRenderable, "blend", RGSS_Renderable_GetBlend, 0);
     rb_define_method1(rb_cRenderable, "blend=", RGSS_Renderable_SetBlend, 1);
+    rb_define_method0(rb_cRenderable, "flip",  RGSS_Renderable_GetFlip, 0);
+    rb_define_method1(rb_cRenderable, "flip=", RGSS_Renderable_SetFlip, 1);
     rb_define_method1(rb_cRenderable, "z=", RGSS_Renderable_SetDepth, 1);
     rb_define_method1(rb_cRenderable, "render", RGSS_Renderable_Render, 1);
     rb_define_protected_method0(rb_cRenderable, "parent", RGSS_Renderable_GetParent, 0);
     rb_define_protected_methodm1(rb_cRenderable, "vertex_setup", RGSS_Renderable_VertexSetup, -1);
+    rb_define_protected_method1(rb_cRenderable, "update_buffer", RGSS_Renderable_UpdateBuffer, 1);
     rb_define_protected_method0(rb_cRenderable, "vao", RGSS_Renderable_GetVAO, 0);
     rb_define_protected_method0(rb_cRenderable, "vbo", RGSS_Renderable_GetVBO, 0);
     rb_define_protected_method0(rb_cRenderable, "ebo", RGSS_Renderable_GetEBO, 0);
+
     rb_define_const(rb_cRenderable, "VERTICES_COUNT", INT2NUM(VERTICES_COUNT));
     rb_define_const(rb_cRenderable, "VERTICES_SIZE", INT2NUM(VERTICES_SIZE));
     rb_define_const(rb_cRenderable, "VERTICES_STRIDE", INT2NUM(VERTICES_STRIDE));
     rb_define_const(rb_cRenderable, "INDICES_COUNT", INT2NUM(INDICES_COUNT));
+    rb_define_const(rb_cRenderable, "FLIP_NONE", INT2NUM(RGSS_FLIP_NONE));
+    rb_define_const(rb_cRenderable, "FLIP_X", INT2NUM(RGSS_FLIP_X));
+    rb_define_const(rb_cRenderable, "FLIP_Y", INT2NUM(RGSS_FLIP_Y));
+    rb_define_const(rb_cRenderable, "FLIP_BOTH", INT2NUM(RGSS_FLIP_BOTH));
+
     rb_include_module(rb_cRenderable, rb_mGL);
     rb_define_alias(rb_cRenderable, "depth=", "z=");
 
@@ -797,9 +1019,23 @@ void RGSS_Init_Entity(VALUE parent)
     rb_define_method1(rb_cBlend, "==", RGSS_Blend_Equal, 1);
     rb_define_method1(rb_cBlend, "eql?", RGSS_Blend_Equal, 1);
 
+    rb_cSprite = rb_define_class_under(parent, "Sprite", rb_cRenderable);
+    rb_define_alloc_func(rb_cSprite, RGSS_Sprite_Alloc);
+    // rb_define_methodm1(rb_cSprite, "initialize", RGSS_Sprite_Initialize, -1); // TODO:
+    rb_define_method0(rb_cSprite, "src_rect", RGSS_Sprite_GetSrcRect, 0);
+    rb_define_method1(rb_cSprite, "src_rect=", RGSS_Sprite_SetSrcRect, 1);
+    rb_define_method0(rb_cSprite, "texture", RGSS_Sprite_GetTexture, 0);
+    rb_define_method1(rb_cSprite, "texture=", RGSS_Sprite_SetTexture, 1);
+    rb_define_method1(rb_cSprite, "render", RGSS_Sprite_Render, 1);
+    rb_define_protected_method0(rb_cSprite, "update_vertices", RGSS_Sprite_UpdateVertices, 0);
+
     RGSS_Blend *b = ALLOC(RGSS_Blend);
     b->op = GL_FUNC_ADD;
     b->src = GL_SRC_ALPHA;
     b->dst = GL_ONE_MINUS_SRC_ALPHA;
     rb_define_const(rb_cBlend, "DEFAULT", Data_Wrap_Struct(rb_cBlend, NULL, RUBY_DEFAULT_FREE, b));
+
+
+    RGSS_ID_UPDATE_VERTICES = rb_intern("update_vertices");
+    RGSS_ID_BATCH = rb_intern("batch");
 }

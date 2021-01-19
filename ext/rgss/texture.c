@@ -8,14 +8,6 @@ VALUE rb_cTexture;
     if ((texture)->id == 0)                                                                                            \
     rb_raise(rb_eRuntimeError, "disposed texture")
 
-typedef struct
-{
-    GLuint id;
-    GLuint fbo;
-    int width;
-    int height;
-} RGSS_Texture;
-
 static VALUE RGSS_Texture_Alloc(VALUE klass)
 {
     RGSS_Texture *tex = ALLOC(RGSS_Texture);

@@ -23,7 +23,7 @@ end
 require_relative 'rgss/version'
 require_relative 'rgss/rgss'
 
-require_relative 'rgss/renderable'
+# require_relative 'rgss/renderable'
 require_relative 'rgss/sprite'
 require_relative 'rgss/viewport'
 require_relative 'rgss/plane'
@@ -47,8 +47,8 @@ module RGSS
       $sprite.z -= 1 if Input.press?(:LOWER)
 
       $sprite.update(delta)
-      $v.update(delta)
-      $fog.update(delta)
+      # $v.update(delta)
+      # $fog.update(delta)
     
       if Input.trigger?(:FULLSCREEN)
         p Graphics.fps
@@ -80,19 +80,19 @@ module RGSS
   Input.bind(:QUIT, Input::KEY_ESCAPE)
 
   Input.cursor_image('/home/eric/Desktop/cursor.png')
-  $v = Viewport.new(1, 1, 256, 256)
-  $v.back_color = Color::BLACK
-  $v.position = vec2(400, 100)
+  # $v = Viewport.new(1, 1, 256, 256)
+  # $v.back_color = Color::BLACK
+  # $v.position = vec2(400, 100)
 
-  # GL.glPixelStorei(GL::GL_UNPACK_ALIGNMENT, 4)
-  fog_tex = Texture.load('/storage/images/RTP/XP/Graphics/Fogs/001-Fog01.png')
+  # # GL.glPixelStorei(GL::GL_UNPACK_ALIGNMENT, 4)
+  # fog_tex = Texture.load('/storage/images/RTP/XP/Graphics/Fogs/001-Fog01.png')
 
-  # $v.angle = 23
-  $fog = Plane.new
-  $fog.texture = fog_tex
-  $fog.size = Size.new(1024, 768)
-  $fog.scroll = vec2(24.0, 32.0)
-  $fog.opacity = 0.5
+  # # $v.angle = 23
+  # $fog = Plane.new
+  # $fog.texture = fog_tex
+  # $fog.size = Size.new(1024, 768)
+  # $fog.scroll = vec2(24.0, 32.0)
+  # $fog.opacity = 0.5
  
   # tex = Texture.load('/home/eric/Desktop/TimeFantasy_PCK/Characters/!$fireplace.png')
   # $sprite = Sprite.new(viewport: $v)
@@ -119,11 +119,13 @@ EOS
   # $sprite.color = Color::WHITE
 
   args = Font.test_texture(markup, 'MinecraftCHMC 18', Size.empty)
-  p args
-
   $sprite = Sprite.new()
   $sprite.texture = Texture.wrap(*args)
   # $sprite.color = Color::WHITE
+
+
+
+
 
   Game.speed = 1.0
   Game.main(30)
