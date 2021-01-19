@@ -45,6 +45,20 @@ static VALUE RGSS_Texture_IsDisposed(VALUE self)
     return RB_BOOL(tex->id != GL_NONE);
 }
 
+static inline void RGSS_Texture_BindFramebuffer(RGSS_Texture *texture)
+{
+    if (texture->fbo == 0)
+    {
+        glGenFramebuffers(1, &texture->fbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, texture->fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture->id, 0);
+    }
+    else
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, texture->fbo);
+    }
+}
+
 static VALUE RGSS_Texture_GetDefaultOptions(VALUE klass)
 {
     VALUE opts = rb_iv_get(klass, RGSS_TEXTURE_OPTS);
@@ -120,9 +134,6 @@ static void RGSS_Texture_Generate(int width, int height, void *data, VALUE opts,
     RGSS_ParseOpt(opts, "min_filter", GL_NEAREST, &min_filter);
     RGSS_ParseOpt(opts, "max_filter", GL_LINEAR, &max_filter);
 
-    printf("FORMAT RED: %d\n", format == GL_RED);
-    printf("INTERNAL RED: %d\n", internal == GL_RED);
-
     glGenTextures(1, &texture->id);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture->id);
@@ -162,6 +173,23 @@ static VALUE RGSS_Texture_Unbind(VALUE klass, VALUE index)
     glActiveTexture(unit);
     glBindTexture(GL_TEXTURE_2D, GL_NONE);
     return Qnil;
+}
+
+static VALUE RGSS_Texture_FromID(VALUE klass, VALUE id, VALUE width, VALUE height)
+{
+    RGSS_Texture *tex = ALLOC(RGSS_Texture);
+    tex->id = NUM2UINT(id);
+    tex->width = NUM2INT(width);
+    tex->height = NUM2INT(height);
+
+    if (!glIsTexture(tex->id))
+        rb_raise(rb_eArgError, "invalid texture ID");
+    if (tex->width < 1)
+        rb_raise(rb_eArgError, "width must be greater than 0 (given %d)", tex->width);
+    if (tex->height < 1)
+        rb_raise(rb_eArgError, "height must be greater than 0 (given %d)", tex->height);
+
+    return Data_Wrap_Struct(klass, NULL, RUBY_DEFAULT_FREE, tex);
 }
 
 static VALUE RGSS_Texture_Load(int argc, VALUE *argv, VALUE klass)
@@ -233,6 +261,23 @@ static VALUE RGSS_Texture_Initialize(int argc, VALUE *argv, VALUE self)
     return self;
 }
 
+static VALUE RGSS_Texture_ToImage(VALUE self)
+{
+    RGSS_Texture *tex = DATA_PTR(self);
+    RGSS_ASSERT_TEXTURE(tex);
+
+    GLFWimage *img = ALLOC(GLFWimage);
+    img->width = tex->width;
+    img->height = tex->height;
+    img->pixels = xmalloc(img->width * img->height * sizeof(unsigned int));
+
+    RGSS_Texture_BindFramebuffer(tex);
+    glReadPixels(0, 0, tex->width, tex->height, GL_RGBA, GL_UNSIGNED_BYTE, img->pixels);
+    glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
+
+    return Data_Wrap_Struct(rb_cImage, NULL, RGSS_Image_Free, img);
+}
+
 static VALUE RGSS_Texture_Target(int argc, VALUE *argv, VALUE self)
 {
     VALUE area;
@@ -260,16 +305,7 @@ static VALUE RGSS_Texture_Target(int argc, VALUE *argv, VALUE self)
         h = rect->height;
     }
 
-    if (tex->fbo == 0)
-    {
-        glGenFramebuffers(1, &tex->fbo);
-        glBindFramebuffer(GL_FRAMEBUFFER, tex->fbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex->id, 0);
-    }
-    else
-    {
-        glBindFramebuffer(GL_FRAMEBUFFER, tex->fbo);
-    }
+    RGSS_Texture_BindFramebuffer(tex);
 
     mat4 mat;
     glm_ortho(x, x + w, y, y + h, -1.0f, 1.0f, mat);
@@ -284,12 +320,64 @@ static VALUE RGSS_Texture_Target(int argc, VALUE *argv, VALUE self)
     glBufferSubData(GL_UNIFORM_BUFFER, 0, RGSS_MAT4_SIZE, RGSS_GAME.graphics.projection);
     glBindBuffer(GL_UNIFORM_BUFFER, GL_NONE);
 
-    int *vp = (int *)&RGSS_GAME.graphics.viewport;
-    float *color = RGSS_GAME.graphics.color;
-    glViewport(vp[0], vp[1], vp[2], vp[3]);
-    glClearColor(color[0], color[1], color[2], color[3]);
-    glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
+    RGSS_Graphics_Restore(rb_mGraphics);
 
+    return self;
+}
+
+static inline void RGSS_Texture_Fill(RGSS_Texture *tex, float *color, RGSS_Rect *rect)
+{
+    RGSS_Texture_BindFramebuffer(tex);
+    glScissor(rect->x, rect->y, rect->width, rect->height);
+    glClearColor(color[0], color[1], color[2], color[3]);
+    glClear(GL_COLOR_BUFFER_BIT);
+    RGSS_Graphics_Restore(rb_mGraphics);
+}
+
+static VALUE RGSS_Texture_Clear(VALUE self)
+{
+    RGSS_Texture *tex = DATA_PTR(self);
+    RGSS_Rect rect = {0, 0, tex->width, tex->height};
+    float color[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    RGSS_Texture_Fill(tex, color, &rect);
+    return self;
+}
+
+static VALUE RGSS_Texture_FillRect(int argc, VALUE *argv, VALUE self)
+{
+    VALUE a0, a1, a2, a3, a4;
+    rb_scan_args(argc, argv, "23", &a0, &a1, &a2, &a3, &a4);
+
+    RGSS_Texture *tex = DATA_PTR(self);
+    float *color;
+    RGSS_Rect rect;
+
+    switch (argc)
+    {
+        case 2: {
+            memcpy(&rect, DATA_PTR(a0), sizeof(RGSS_Rect));
+            color = DATA_PTR(a1);
+            break;
+        }
+        case 3: {
+            memcpy(&rect.location, DATA_PTR(a0), sizeof(RGSS_Point));
+            memcpy(&rect.size, DATA_PTR(a1), sizeof(RGSS_Size));
+            color = DATA_PTR(a2);
+            break;
+        }
+        case 5: {
+            rect.x = NUM2INT(a0);
+            rect.y = NUM2INT(a1);
+            rect.width = NUM2INT(a2);
+            rect.height = NUM2INT(a3);
+            color = DATA_PTR(a4);
+            break;
+        }
+        default:
+            rb_raise(rb_eArgError, "wrong number of arguments (given %d, expexted 2, 3, or 5)");
+    }
+
+    RGSS_Texture_Fill(tex, color, &rect);
     return self;
 }
 
@@ -301,7 +389,7 @@ void RGSS_Init_Texture(VALUE parent)
     rb_define_methodm1(rb_cTexture, "initialize", RGSS_Texture_Initialize, -1);
     rb_define_method0(rb_cTexture, "dispose", RGSS_Texture_Dispose, 0);
     rb_define_method0(rb_cTexture, "disposed?", RGSS_Texture_IsDisposed, 0);
-
+    rb_define_method0(rb_cTexture, "to_image", RGSS_Texture_ToImage, 0);
     rb_define_method0(rb_cTexture, "width", RGSS_Texture_GetWidth, 0);
     rb_define_method0(rb_cTexture, "height", RGSS_Texture_GetHeight, 0);
     rb_define_method0(rb_cTexture, "id", RGSS_Texture_GetID, 0);
@@ -311,9 +399,13 @@ void RGSS_Init_Texture(VALUE parent)
     rb_define_methodm1(rb_cTexture, "bind", RGSS_Texture_Bind, -1);
     rb_define_methodm1(rb_cTexture, "target", RGSS_Texture_Target, -1);
 
+    rb_define_method0(rb_cTexture, "clear", RGSS_Texture_Clear, 0);
+    rb_define_methodm1(rb_cTexture, "fill_rect", RGSS_Texture_FillRect, -1);
+
     rb_define_alias(rb_cTexture, "bounds", "rect");
 
     rb_define_singleton_methodm1(rb_cTexture, "load", RGSS_Texture_Load, -1);
     rb_define_singleton_method0(rb_cTexture, "default_options", RGSS_Texture_GetDefaultOptions, 0);
     rb_define_singleton_method1(rb_cTexture, "unbind", RGSS_Texture_Unbind, 1);
+    rb_define_singleton_method3(rb_cTexture, "wrap", RGSS_Texture_FromID, 3);
 }

@@ -23,10 +23,6 @@ end
 require_relative 'rgss/version'
 require_relative 'rgss/rgss'
 
-require_relative 'rgss/game_object'
-require_relative 'rgss/shader'
-# require_relative 'rgss/texture'
-
 require_relative 'rgss/blend'
 require_relative 'rgss/batch'
 require_relative 'rgss/renderable'
@@ -37,6 +33,8 @@ require_relative 'rgss/font'
 
 
 module RGSS
+
+
 
 
   module Game
@@ -86,10 +84,8 @@ module RGSS
   Input.bind(:LEFT, [Input::KEY_A, Input::KEY_LEFT])
   Input.bind(:DOWN, [Input::KEY_S, Input::KEY_DOWN])
   Input.bind(:RIGHT, [Input::KEY_D, Input::KEY_RIGHT])
-
   Input.bind(:RAISE, Input::KEY_Q)
   Input.bind(:LOWER, Input::KEY_E)
-
   Input.bind(:CONFIRM, Input::KEY_SPACE)
   Input.bind(:FULLSCREEN, Input::KEY_F)
   Input.bind(:QUIT, Input::KEY_ESCAPE)
@@ -99,41 +95,46 @@ module RGSS
   $v.back_color = Color::BLACK
   $v.position = vec2(400, 100)
 
-  GL.glPixelStorei(GL::GL_UNPACK_ALIGNMENT, 1)
-
+  # GL.glPixelStorei(GL::GL_UNPACK_ALIGNMENT, 4)
   fog_tex = Texture.load('/storage/images/RTP/XP/Graphics/Fogs/001-Fog01.png')
 
   # $v.angle = 23
   $fog = Plane.new
   $fog.texture = fog_tex
-  $fog.size = Size.new(400, 400)
+  $fog.size = Size.new(1024, 768)
   $fog.scroll = vec2(24.0, 32.0)
   $fog.opacity = 0.5
  
- 
-  # $sprite = Sprite.new($v)
-  # $sprite.texture = Texture.load('/home/eric/Desktop/TimeFantasy_PCK/Characters/!$fireplace.png')
+  # tex = Texture.load('/home/eric/Desktop/TimeFantasy_PCK/Characters/!$fireplace.png')
+  # $sprite = Sprite.new(viewport: $v)
+  # $sprite.texture = tex
 
-  # font = Font.new('/home/eric/Desktop/Fonts/comic.ttf')
-  # font = Font.new('/home/eric/Desktop/Fonts/consola.ttf')
-
-
-  font = Font.new('Times', 32)
+  
   markup = <<-EOS
 regular <b>bold</b> <i>italic</i> <u>underline</u> <span overline="single">overline</span>
 <s>strikethrough</s> <tt>monospace</tt> <b><u>bold underline</u></b> 
 <span font_style="oblique">oblique</span> <small>smaller</small> <big>bigger</big> <sup>superscript</sup> <sub>subscript</sub>
 <span font="Comic Sans MS">Mid-string font change</span>
-  EOS
+<span foreground=\"#FFCC00\"> colored</span>
+EOS
 
+  Font.add_file('/home/eric/open_rpg/fonts/MinecraftCHMC.ttf')
+
+  font = Font.new('MinecraftCHMC', 32)
   size = font.measure(markup)
-  p size
-  baked = font.bake(markup, size, align: Font::ALIGN_CENTER, valign: 2)
-  tex = Texture.new(size.width, size.height, baked, format: GL::GL_RED, internal: GL::GL_RED)
+  baked = font.bake(markup, size, align: Font::ALIGN_CENTER)
+  # tex = Texture.new(size.width, size.height, baked, format: GL::GL_RED, internal: GL::GL_RED)
 
-  $sprite = TextSprite.new()
-  $sprite.texture = tex
-  $sprite.color = Color::WHITE
+  # $sprite = TextSprite.new()
+  # $sprite.texture = tex
+  # $sprite.color = Color::WHITE
+
+  args = Font.test_texture(markup, 'MinecraftCHMC 18', Size.empty)
+  p args
+
+  $sprite = Sprite.new()
+  $sprite.texture = Texture.wrap(*args)
+  # $sprite.color = Color::WHITE
 
   Game.speed = 1.0
   Game.main(30)

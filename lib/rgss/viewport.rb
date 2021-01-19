@@ -30,14 +30,14 @@ module RGSS
         1.0, 0.0, 1.0, 0.0, # Top-Right
         0.0, 0.0, 0.0, 0.0, # Top-Left
         1.0, 1.0, 1.0, 1.0, # Bottom-Right
-      ].pack('f*')
+      ]
       vertex_setup(vertices, nil, GL_STATIC_DRAW)
       @back_color = nil
     end
 
 
     def render(delta)
-      return unless @visible && @opacity > 0.0
+      return unless self.visible && self.opacity > 0.0
 
       glBindFramebuffer(GL_FRAMEBUFFER, @framebuffer)
       glClearColor(@back_color)
@@ -52,7 +52,7 @@ module RGSS
 
       super(delta)
       @texture.bind
-      glBindVertexArray(@vao)
+      glBindVertexArray(self.vao)
       glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_BYTE, nil)
       glBindVertexArray(GL_NONE)
     end

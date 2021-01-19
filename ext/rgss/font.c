@@ -1,13 +1,156 @@
 #include "game.h"
+// #include <cairo/cairo.h>
 #include <pango/pangoft2.h>
+#include <pango/pangocairo.h>
 #include FT_BITMAP_H
 
+#include "glad.h"
+
+
 #define RGSS_DEFAULT_FONT_SIZE 16
+
+
 
 #define RGSS_IV_COLOR "@default_color"
 #define RGSS_IV_SIZE "@default_size"
 
 VALUE rb_cFont;
+
+
+
+
+
+
+
+
+
+static unsigned int
+create_texture (unsigned int width,
+                unsigned int height,
+                unsigned char *pixels)
+{
+    unsigned int texture_id;
+
+    glGenTextures (1, &texture_id);
+    glBindTexture (GL_TEXTURE_2D, texture_id);
+    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage2D (GL_TEXTURE_2D,
+                  0,
+                  GL_RGBA,
+                  width,
+                  height,
+                  0,
+                  GL_BGRA,
+                  GL_UNSIGNED_BYTE,
+                  pixels);
+
+    return texture_id;
+}
+
+static inline void get_text_size (PangoLayout *layout, unsigned int *width, unsigned int *height)
+{
+    pango_layout_get_size (layout, width, height);
+    /* Divide by pango scale to get dimensions in pixels. */
+    *width /= PANGO_SCALE;
+    *height /= PANGO_SCALE;
+}
+
+static inline cairo_t *RGSS_Font_CreateCairo (int width, int height, int channels, cairo_surface_t** surf, unsigned char** buffer)
+{
+    *buffer = calloc (channels * width * height, sizeof (unsigned char));
+    *surf = cairo_image_surface_create_for_data (*buffer, CAIRO_FORMAT_ARGB32, width, height, channels * width);
+    return cairo_create(*surf);
+}
+
+static inline cairo_t *RGSS_Font_CreateContext(void)
+{
+    cairo_surface_t *temp_surface;
+    cairo_t *context;
+
+    temp_surface = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, 0, 0);
+    context = cairo_create (temp_surface);
+    cairo_surface_destroy (temp_surface);
+
+    return context;
+}
+
+
+static unsigned int RGSS_Font_CreateTexture (const char *text,
+            const char *FONT,
+             unsigned int *text_width,
+             unsigned int *text_height,
+             unsigned int *texture_id)
+{
+    cairo_t *layout_context;
+    cairo_t *render_context;
+    cairo_surface_t *temp_surface;
+    cairo_surface_t *surface;
+    unsigned char* surface_data = NULL;
+
+    PangoFontDescription *desc;
+    PangoLayout *layout;
+
+    layout_context = RGSS_Font_CreateContext ();
+
+    /* Create a PangoLayout, set the font and text */
+    layout = pango_cairo_create_layout (layout_context);
+
+
+    pango_layout_set_markup(layout, text, -1);
+    // pango_layout_set_text (layout, text, -1);
+
+    /* Load the font */
+    desc = pango_font_description_from_string (FONT);
+    pango_layout_set_font_description (layout, desc);
+    pango_font_description_free (desc);
+
+    /* Get text dimensions and create a context to render to */
+    get_text_size (layout, text_width, text_height);
+    render_context = RGSS_Font_CreateCairo (*text_width,
+                                           *text_height,
+                                           4,
+                                           &surface,
+                                           &surface_data);
+
+    /* Render */
+    cairo_set_source_rgba (render_context, 1, 1, 1, 1);
+    pango_cairo_show_layout (render_context, layout);
+    *texture_id = create_texture(*text_width, *text_height, surface_data);
+
+    /* Clean up */
+    free (surface_data);
+    g_object_unref (layout);
+    cairo_destroy (layout_context);
+    cairo_destroy (render_context);
+    cairo_surface_destroy (surface);
+}
+
+
+
+
+
+static VALUE RGSS_Font_TestTexture(VALUE klass, VALUE str, VALUE fontname, VALUE dimen)
+{
+    char *text = StringValueCStr(str);
+    char *font = StringValueCStr(fontname);
+    RGSS_Size *size = DATA_PTR(dimen);
+
+    unsigned int w, h, id;
+
+    RGSS_Font_CreateTexture(text, font, &w, &h, &id);
+
+    return rb_ary_new_from_args(3, UINT2NUM(id), UINT2NUM(w), UINT2NUM(h));
+}
+
+
+
+
+
+
+
+
+
 
 
 
@@ -228,30 +371,39 @@ static VALUE RGSS_Font_Initialize(int argc, VALUE *argv, VALUE self)
     return self;
 }
 
+static VALUE RGSS_Font_Add(VALUE klass, VALUE path)
+{
+    char *file = StringValueCStr(path);
+    FcBool fontAddStatus = FcConfigAppFontAddFile(FcConfigGetCurrent(), file);
+    return RB_BOOL(fontAddStatus);
+}
+
 void RGSS_Init_Font(VALUE parent)
 {
     rb_cFont = rb_define_class_under(parent, "Font", rb_cObject);
     rb_define_alloc_func(rb_cFont, RGSS_Font_Alloc);
 
-    rb_define_method(rb_cFont, "initialize", RGSS_Font_Initialize, -1);
-    rb_define_method(rb_cFont, "bake", RGSS_Font_Bake, -1);
-    rb_define_method(rb_cFont, "measure", RGSS_Font_Measure, -1);
+    rb_define_methodm1(rb_cFont, "initialize", RGSS_Font_Initialize, -1);
+    rb_define_methodm1(rb_cFont, "bake", RGSS_Font_Bake, -1);
+    rb_define_methodm1(rb_cFont, "measure", RGSS_Font_Measure, -1);
 
-    rb_define_method(rb_cFont, "size", RGSS_Font_GetSize, 0);
-    rb_define_method(rb_cFont, "size=", RGSS_Font_SetSize, 1);
-    rb_define_method(rb_cFont, "color", RGSS_Font_GetColor, 0);
-    rb_define_method(rb_cFont, "color=", RGSS_Font_SetColor, 1);
+    rb_define_method0(rb_cFont, "size", RGSS_Font_GetSize, 0);
+    rb_define_method1(rb_cFont, "size=", RGSS_Font_SetSize, 1);
+    rb_define_method0(rb_cFont, "color", RGSS_Font_GetColor, 0);
+    rb_define_method1(rb_cFont, "color=", RGSS_Font_SetColor, 1);
 
-    rb_define_singleton_method(rb_cFont, "default_color", RGSS_Font_GetDefaultColor, 0);
-    rb_define_singleton_method(rb_cFont, "default_color=", RGSS_Font_SetDefaultColor, 1);
-    rb_define_singleton_method(rb_cFont, "default_size", RGSS_Font_GetDefaultSize, 0);
-    rb_define_singleton_method(rb_cFont, "default_size=", RGSS_Font_SetDefaultSize, 1);
+    rb_define_singleton_method0(rb_cFont, "default_color", RGSS_Font_GetDefaultColor, 0);
+    rb_define_singleton_method1(rb_cFont, "default_color=", RGSS_Font_SetDefaultColor, 1);
+    rb_define_singleton_method0(rb_cFont, "default_size", RGSS_Font_GetDefaultSize, 0);
+    rb_define_singleton_method1(rb_cFont, "default_size=", RGSS_Font_SetDefaultSize, 1);
+
+    rb_define_singleton_method1(rb_cFont, "add_file", RGSS_Font_Add, 1);
+
+    rb_define_singleton_method3(rb_cFont, "test_texture", RGSS_Font_TestTexture, 3);
 
     rb_define_const(rb_cFont, "ALIGN_LEFT", INT2NUM(PANGO_ALIGN_LEFT));
     rb_define_const(rb_cFont, "ALIGN_CENTER", INT2NUM(PANGO_ALIGN_CENTER));
     rb_define_const(rb_cFont, "ALIGN_RIGHT", INT2NUM(PANGO_ALIGN_RIGHT));
-
     rb_define_const(rb_cFont, "ALIGN_TOP", INT2NUM(PANGO_ALIGN_LEFT));
-    rb_define_const(rb_cFont, "ALIGN_CENTER", INT2NUM(PANGO_ALIGN_CENTER));
     rb_define_const(rb_cFont, "ALIGN_BOTTOM", INT2NUM(PANGO_ALIGN_RIGHT));
 }

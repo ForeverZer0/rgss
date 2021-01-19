@@ -14,7 +14,7 @@ module RGSS
     end
 
     def render(alpha)
-      return unless @texture && @visible && @opacity > 0.0
+      return unless @texture && self.visible && self.opacity > 0.0
       TextSprite.shader.configure(self)
       @texture.bind
       glBindVertexArray(@vao)

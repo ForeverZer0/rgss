@@ -26,12 +26,14 @@ extern VALUE rb_mALC;
 extern VALUE rb_cSound;
 extern VALUE rb_cImage;
 
+extern VALUE rb_mGraphics;
 
 extern VALUE rb_cEntity;
 extern VALUE rb_cTexture;
 extern VALUE rb_cFont;
 
 extern VALUE rb_cColor;
+extern VALUE rb_cTone;
 extern VALUE rb_cPoint;
 extern VALUE rb_cSize;
 extern VALUE rb_cRect;

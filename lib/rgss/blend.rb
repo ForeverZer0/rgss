@@ -1,6 +1,7 @@
 
 module RGSS
 
+  if false
   class Blend
 
     ZERO                     = 0x0000
@@ -44,4 +45,5 @@ module RGSS
     end
 
   end
+end
 end

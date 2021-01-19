@@ -97,6 +97,8 @@ void RGSS_Input_Init(GLFWwindow *window);
 void RGSS_Input_Deinit(GLFWwindow *window);
 void RGSS_Input_Update(void);
 
+VALUE RGSS_Graphics_Restore(VALUE graphics);
+
 void RGSS_Image_Free(void *img);
 void RGSS_Image_SavePNG(const char *filename, int width, int height, unsigned char *pixels);
 
@@ -117,6 +119,39 @@ static inline void RGSS_ParseOpt(VALUE opts, const char *name, int ifnone, int *
         else
             *result = (opt == Qnil) ? ifnone : RTEST(opt);
     }
+}
+
+static inline char *RGSS_FileRead(VALUE path)
+{
+    if (NIL_P(path))
+        rb_raise(rb_eArgError, "path cannot be nil");
+
+    char *filename = StringValueCStr(path);
+    struct stat st;
+    if (stat(filename, &st) != 0)
+    {
+        VALUE enoent = rb_const_get(rb_mErrno, rb_intern("ENOENT"));
+        rb_raise(enoent, filename);
+    }
+
+    FILE *fp = fopen(filename, "rb");
+    if (fp == NULL)
+        rb_raise(rb_eIOError, "failed to open %s", filename);
+
+    fseek(fp, 0, SEEK_END);
+    long len = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    char *buffer = xmalloc(len + 1);
+    if (buffer == NULL)
+        rb_raise(rb_eNoMemError, "out of memory");
+
+    size_t rd = fread(buffer, 1, len, fp);
+    if (rd != len)
+        rb_raise(rb_eIOError, "failed to read %s", filename);
+
+    buffer[0] = '\0';
+    return buffer;
 }
 
 #endif /* RGSS_GAME_H */

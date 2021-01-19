@@ -1,7 +1,7 @@
 
 module RGSS
 
-  class TextShader < Shader
+  class TextShader < Graphics::Shader
 
     def initialize
       vert = File.read(File.join(__dir__, 'shaders', 'sprite-vert.glsl'))
@@ -19,7 +19,7 @@ module RGSS
 
   end
 
-  class SpriteShader < Shader
+  class SpriteShader < Graphics::Shader
 
     def initialize
       vert = File.read(File.join(__dir__, 'shaders', 'sprite-vert.glsl'))
@@ -72,123 +72,16 @@ module RGSS
 
     include GL
 
-    VERTICES_COUNT = 16
-    VERTICES_SIZE = SIZEOF_FLOAT * VERTICES_COUNT
-    VERTICES_STRIDE = SIZEOF_FLOAT * 4
-
     def self.shader
       @shader ||= SpriteShader.new
     end
 
-    ##
-    # @return [Color]
-    attr_accessor :color
-
-    ##
-    # @return [Tone]
-    attr_accessor :tone
-
-    ##
-    # @return [Float]
-    attr_accessor :hue
-
-    ##
-    # @return [Float]
-    attr_reader :opacity
-
-    ##
-    # @return [Color]
-    attr_reader :flash_color
-
-    ##
-    # @return [Boolean]
-    attr_accessor :visible
-
-    ##
-    # @return [Blend]
-    attr_accessor :blend
-
-    def initialize(parent, **opts)
-      super()
-      @parent = parent.is_a?(RGSS::Batch) ? parent : Graphics.batch
-      @parent.add(self)
-
-      @visible = true
-      @color = Color::NONE
-      @tone = Tone.new(0.0, 0.0, 0.0, 0.0)
-      @flash_color = Color::NONE
-      @flash_duration = -1
-      @hue = 0.0
-      @opacity = 1.0
-      @blend = Blend.default
-    end
-
-    def dispose
-      @parent&.remove(self)
-      glDeleteVertexArray(@vao) if @vao
-      glDeleteBuffer(@vbo) if @vbo
-      glDeleteBuffer(@ebo) if @ebo
-    end
-
-    def flashing?
-      @flash_duration > -1
-    end
-
-    def opacity=(value)
-      @opacity = [0.0, [1.0, value.to_f].min].max
-    end
-
-    def update(delta)
-      super
-      if @flash_duration > -1
-        @flash_duration -= 1
-        @flash_color = Color::NONE if @flash_duration < 0
-      end
-    end
-
-    def flash(color, duration)
-      @flash_color = color
-      @flash_duration = duration
-    end
-
     def render(delta)
 
-      if @blend
-        glBlendEquation(@blend.op)
-        glBlendFunc(@blend.src, @blend.dst)
-      end
+      glBlendEquation(self.blend.op)
+      glBlendFunc(self.blend.src, self.blend.dst)
 
       Renderable.shader.configure(self)
-    end
-
-    def z=(value)
-      @parent.invalidate
-      super(value)
-    end
-
-    protected
-
-    def parent
-      @parent
-    end
-
-    def vertex_setup(vertices = nil, indices = nil, vbo_usage = GL_DYNAMIC_DRAW, ebo_usage = GL_STATIC_DRAW)
-
-      @vao = glGenVertexArray
-      @vbo = glGenBuffer
-      @ebo = glGenBuffer
-
-      glBindVertexArray(@vao)
-      glBindBuffer(GL_ARRAY_BUFFER, @vbo)
-      glBufferData(GL_ARRAY_BUFFER, vertices&.bytesize || VERTICES_SIZE, vertices, vbo_usage)
-
-      indices ||= [0, 1, 2, 0, 3, 1].pack('C*')
-      glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, @ebo)
-      glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.bytesize, indices, ebo_usage)
-
-      glEnableVertexAttribArray(0)
-      glVertexAttribPointer(0, 4, GL_FLOAT, false, SIZEOF_FLOAT * 4, nil)
-      glBindVertexArray(GL_NONE)
     end
   end
 end

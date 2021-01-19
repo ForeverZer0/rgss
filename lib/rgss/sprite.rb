@@ -39,10 +39,10 @@ module RGSS
     end
 
     def render(alpha)
-      return unless @texture && @visible && @opacity > 0.0
+      return unless @texture && self.visible && self.opacity > 0.0
       super(alpha)
       @texture.bind
-      glBindVertexArray(@vao)
+      glBindVertexArray(self.vao)
       glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_BYTE, nil)
       glBindVertexArray(GL_NONE)
     end
@@ -69,7 +69,7 @@ module RGSS
         0.0, 0.0, l, t, # Top-Left
         1.0, 1.0, r, b, # Bottom-Right
       ].pack('f*')
-      glBindBuffer(GL_ARRAY_BUFFER, @vbo)
+      glBindBuffer(GL_ARRAY_BUFFER, self.vbo)
       glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.size, vertices)
       glBindBuffer(GL_ARRAY_BUFFER, 0)
     end

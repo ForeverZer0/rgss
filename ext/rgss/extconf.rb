@@ -55,6 +55,7 @@ $INCFLAGS << " -I#{CGLM_DIR}/include"
 end
 
 pkg_config('glfw3')
+pkg_config('pangocairo')
 pkg_config('pangoft2')
 pkg_config('sndfile')
 pkg_config('openal')
