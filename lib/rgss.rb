@@ -22,12 +22,8 @@ end
 
 require_relative 'rgss/version'
 require_relative 'rgss/rgss'
+# require_relative 'rgss/plane'
 
-# require_relative 'rgss/renderable'
-require_relative 'rgss/sprite'
-require_relative 'rgss/viewport'
-require_relative 'rgss/plane'
-require_relative 'rgss/font'
 
 
 module RGSS
@@ -48,11 +44,10 @@ module RGSS
 
       $sprite.update(delta)
       $v.update(delta)
-      # $fog.update(delta)
+      $fog.update(delta)
     
       if Input.trigger?(:FULLSCREEN)
         p Graphics.fps
-        p $v.position
       end
 
       if Input.press?(:QUIT)
@@ -84,21 +79,16 @@ module RGSS
   $v.back_color = Color::BLACK
   $v.position = vec2(400, 100)
 
-  # # GL.glPixelStorei(GL::GL_UNPACK_ALIGNMENT, 4)
-  # fog_tex = Texture.load('/storage/images/RTP/XP/Graphics/Fogs/001-Fog01.png')
 
-  # # $v.angle = 23
-  # $fog = Plane.new
-  # $fog.texture = fog_tex
-  # $fog.size = Size.new(1024, 768)
-  # $fog.scroll = vec2(24.0, 32.0)
-  # $fog.opacity = 0.5
- 
-  # tex = Texture.load('/home/eric/Desktop/TimeFantasy_PCK/Characters/!$fireplace.png')
-  # $sprite = Sprite.new(viewport: $v)
-  # $sprite.texture = tex
+  fog_tex = Texture.load('/storage/images/RTP/XP/Graphics/Fogs/001-Fog01.png')
 
-  
+  # $v.angle = 23
+  $fog = Plane.new
+  $fog.texture = fog_tex
+  $fog.size = Size.new(1024, 768)
+  $fog.scroll = vec2(24.0, 32.0)
+  $fog.opacity = 0.5
+
   markup = <<-EOS
 regular <b>bold</b> <i>italic</i> <u>underline</u> <span overline="single">overline</span>
 <s>strikethrough</s> <tt>monospace</tt> <b><u>bold underline</u></b> 
@@ -112,18 +102,13 @@ EOS
   font = Font.new('MinecraftCHMC', 32)
   size = font.measure(markup)
   baked = font.bake(markup, size, align: Font::ALIGN_CENTER)
-  # tex = Texture.new(size.width, size.height, baked, format: GL::GL_RED, internal: GL::GL_RED)
 
-  # $sprite = TextSprite.new()
-  # $sprite.texture = tex
-  # $sprite.color = Color::WHITE
 
   args = Font.test_texture(markup, 'MinecraftCHMC 18', Size.empty)
   $sprite = Sprite.new($v)
+  $sprite.flip = 2
   $sprite.texture = Texture.wrap(*args)
-  # $sprite.color = Color::WHITE
-
-
+ 
 
 
 

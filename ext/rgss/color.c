@@ -461,6 +461,7 @@ void RGSS_Init_ColorAndTone(VALUE parent)
     glm_vec4_zero(gray);
     gray[3] = 1.0f;
     rb_define_const(rb_cTone, "GRAY", Data_Wrap_Struct(rb_cTone, NULL, free, gray));
+    rb_define_const(rb_cTone, "NONE", RGSS_Color_Alloc(rb_cTone));
 
 #define COLOR_CONST(r, g, b, a, name) rb_define_const(rb_cColor, #name, RGSS_Color_New(rb_cColor, r, g, b, a))
     COLOR_CONST(0.00000f, 0.00000f, 0.00000f, 0.00000f, NONE);

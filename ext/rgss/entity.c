@@ -17,6 +17,7 @@ VALUE rb_cRenderable;
 VALUE rb_cBlend;
 VALUE rb_cViewport;
 VALUE rb_cSprite;
+VALUE rb_cPlane;
 
 vec3 AXIS_Z = {0.0f, 0.0f, 1.0f};
 
@@ -25,6 +26,7 @@ typedef struct
     RGSS_Renderable base;
     VALUE texture;
     RGSS_Rect src_rect;
+    VALUE viewport;
 } RGSS_Sprite;
 
 typedef struct {
@@ -36,6 +38,17 @@ typedef struct {
     RGSS_Rect rect;
     RGSS_Color back_color;
 } RGSS_Viewport;
+
+typedef struct {
+    RGSS_Renderable base;
+    VALUE texture;
+    VALUE viewport;
+    GLuint sampler;
+    vec2 zoom;
+    vec2 scroll;
+    vec2 origin;
+} RGSS_Plane;
+
 
 // TODO: Use direct pointer with RUBY_NEVER_FREE instead of new vector?
 
@@ -330,16 +343,27 @@ static VALUE RGSS_Entity_GetBounds(VALUE self)
     return Data_Wrap_Struct(rb_cRect, NULL, RUBY_DEFAULT_FREE, rect);
 }
 
-static VALUE RGSS_Entity_Rotate(VALUE self, VALUE degrees, VALUE pivot)
+static VALUE RGSS_Entity_Rotate(int argc, VALUE *argv, VALUE self)
 {
+    VALUE degrees, pivot;
+    rb_scan_args(argc, argv, "11", &degrees, &pivot);
+
     RGSS_Entity *entity = DATA_PTR(self);
 
     vec3 value;
     RGSS_Entity_ParseArg(pivot, value);
 
     entity->angle = NUM2DBL(degrees) * (M_PI / 180.0);
-    glm_vec3_copy(value, entity->pivot);
 
+    if (NIL_P(pivot))
+    {
+        glm_vec3_copy(value, entity->pivot);
+    }
+    else
+    {
+        entity->pivot[0] = entity->size[0] * 0.5f;
+        entity->pivot[1] = entity->size[1] * 0.5f;
+    }
     return self;
 }
 
@@ -393,7 +417,7 @@ static VALUE RGSS_Renderable_Initialize(VALUE self, VALUE parent)
     {
         if (rb_obj_is_kind_of(self, rb_cViewport))
             rb_raise(rb_eRuntimeError, "a Viewport cannot be child of another Viewport");
-        parent = rb_funcall2(rb_mGraphics, RGSS_ID_BATCH, 0, NULL);
+        parent = rb_funcall2(parent, RGSS_ID_BATCH, 0, NULL);
     }
     else if (rb_obj_is_kind_of(parent, rb_cBatch) != Qtrue)
     {
@@ -863,6 +887,12 @@ static VALUE RGSS_Sprite_Initialize(int argc, VALUE *argv, VALUE self)
     rb_call_super(1, &viewport);
     RGSS_Renderable_VertexSetup(0, NULL, self);
 
+    if (rb_obj_is_kind_of(viewport, rb_cViewport) == Qtrue)
+    {
+        RGSS_Sprite *sprite = DATA_PTR(self);
+        sprite->viewport = viewport;
+    }
+
     if (RTEST(opts))
     {
         VALUE opt;
@@ -877,6 +907,7 @@ static void RGSS_Sprite_Mark(void *data)
 {
     RGSS_Sprite *sprite = data;
     rb_gc_mark(sprite->texture);
+    rb_gc_mark(sprite->viewport);
 }
 
 static VALUE RGSS_Sprite_Alloc(VALUE klass)
@@ -884,6 +915,7 @@ static VALUE RGSS_Sprite_Alloc(VALUE klass)
     RGSS_Sprite *sprite = ALLOC(RGSS_Sprite);
     memset(sprite, 0, sizeof(RGSS_Sprite));
     RGSS_Enity_Init(&sprite->base.entity);
+    sprite->texture = Qnil;
     sprite->texture = Qnil;
     return Data_Wrap_Struct(klass, RGSS_Sprite_Mark, RUBY_DEFAULT_FREE, sprite);
 }
@@ -907,6 +939,12 @@ static VALUE RGSS_Sprite_Render(VALUE self, VALUE alpha)
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_BYTE, NULL);
     glBindVertexArray(GL_NONE);
     return Qnil;
+}
+
+static VALUE RGSS_Sprite_GetViewport(VALUE self)
+{
+    RGSS_Sprite *sprite = DATA_PTR(self);
+    return sprite->viewport;
 }
 
 static VALUE RGSS_Blend_Alloc(VALUE klass)
@@ -1158,6 +1196,243 @@ static VALUE RGSS_Viewport_SetBackColor(VALUE self, VALUE color)
     return color;
 }
 
+static void RGSS_Plane_Mark(void *data)
+{
+    RGSS_Plane *plane = data;
+    rb_gc_mark(plane->texture);
+    rb_gc_mark(plane->viewport);
+}
+
+static VALUE RGSS_Plane_Alloc(VALUE klass)
+{
+    RGSS_Plane *plane = ALLOC(RGSS_Plane);
+    memset(plane, 0, sizeof(RGSS_Plane));
+    RGSS_Enity_Init(&plane->base.entity);
+    plane->texture = Qnil;
+    plane->viewport = Qnil;
+    return Data_Wrap_Struct(klass, RGSS_Plane_Mark, RUBY_DEFAULT_FREE, plane);
+}
+
+static VALUE RGSS_Plane_Dispose(VALUE self)
+{
+    rb_call_super(0, NULL);
+    RGSS_Plane *plane = DATA_PTR(self);
+    if (plane->sampler)
+    {
+        glDeleteSamplers(1, &plane->sampler);
+        plane->sampler = GL_NONE;
+    }
+    return Qnil;
+}
+
+static VALUE RGSS_Plane_UpdateVertices(VALUE self)
+{
+    RGSS_Plane *plane = DATA_PTR(self);
+    RGSS_Texture *tex = RTEST(plane->texture) ? DATA_PTR(plane->texture) : NULL;
+    if (tex == NULL)
+        return Qnil;
+
+    GLfloat l, t, r, b;
+    l = (plane->origin[0] / plane->base.entity.size[0]) * plane->zoom[0];
+    t = (plane->origin[1] / plane->base.entity.size[1]) * plane->zoom[1];
+    r = l + ((plane->base.entity.size[0] / (GLfloat) tex->width) * plane->zoom[0]);
+    b = t + ((plane->base.entity.size[1] / (GLfloat) tex->width) * plane->zoom[1]);
+
+    if (RGSS_HAS_FLAG(plane->base.flip, RGSS_FLIP_X))
+    {
+        GLfloat temp_l = l;
+        l = r;
+        r = temp_l;
+    }
+
+    if (RGSS_HAS_FLAG(plane->base.flip, RGSS_FLIP_Y))
+    {
+        GLfloat temp_t = t;
+        t = b;
+        b = temp_t;
+    }
+
+    GLfloat vertices[VERTICES_COUNT] =
+    {
+        0.0f, 1.0f, l, b, // Bottom-Left
+        1.0f, 0.0f, r, t, // Top-Right
+        0.0f, 0.0f, l, t, // Top-Left
+        1.0f, 1.0f, r, b, // Bottom-Right
+    };
+
+    glBindBuffer(GL_ARRAY_BUFFER, plane->base.vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, VERTICES_SIZE, vertices);
+    glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
+
+    return Qnil;
+}
+
+static VALUE RGSS_Plane_GetTexture(VALUE self)
+{
+    RGSS_Plane *plane = DATA_PTR(self);
+    return plane->texture;
+}
+
+static VALUE RGSS_Plane_SetTexture(VALUE self, VALUE texture)
+{
+    RGSS_Plane *plane = DATA_PTR(self);
+    plane->texture = texture;
+
+    if (NIL_P(texture))
+    {
+        glm_vec3_zero(plane->base.entity.size);
+    }
+    else
+    {
+        RGSS_Texture *tex = DATA_PTR(texture);
+        plane->base.entity.size[0] = (float) tex->width;
+        plane->base.entity.size[1] = (float) tex->height;
+        RGSS_Plane_UpdateVertices(self);
+    }
+}
+
+static VALUE RGSS_Plane_Initialize(int argc, VALUE *argv, VALUE self)
+{
+    VALUE viewport, opts;
+    rb_scan_args(argc, argv, "01:", &viewport, &opts);
+
+    rb_call_super(1, &viewport);
+    RGSS_Renderable_VertexSetup(0, NULL, self);
+
+    RGSS_Plane *plane = DATA_PTR(self);
+    if (rb_obj_is_kind_of(viewport, rb_cViewport) == Qtrue)
+    {
+        plane->viewport = viewport;
+    }
+
+    glGenSamplers(1, &plane->sampler);
+    glSamplerParameteri(plane->sampler, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glSamplerParameteri(plane->sampler, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glSamplerParameteri(plane->sampler, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glSamplerParameteri(plane->sampler, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glm_vec2_zero(plane->scroll);
+    glm_vec2_zero(plane->origin);
+    glm_vec2_one(plane->zoom);
+
+    if (RTEST(opts))
+    {
+        VALUE opt;
+        opt = rb_hash_aref(opts, STR2SYM("texture"));
+        if (RTEST(opt))
+            RGSS_Sprite_SetTexture(self, opt);
+    }
+
+    return self;
+}
+
+static VALUE RGSS_Plane_GetZoom(VALUE self)
+{
+    RGSS_Plane *plane = DATA_PTR(self);
+    return RGSS_Vec2_New(plane->zoom[0], plane->zoom[1]);
+}
+
+static VALUE RGSS_Plane_SetZoom(VALUE self, VALUE value)
+{
+    RGSS_Plane *plane = DATA_PTR(self);
+    if (rb_obj_is_kind_of(value, rb_cVec2))
+    {
+        glm_vec2_copy(DATA_PTR(value), plane->zoom);
+    }
+    else
+    {
+        glm_vec2_one(plane->zoom);
+    }
+    return value;
+}
+
+static VALUE RGSS_Plane_GetScoll(VALUE self)
+{
+    RGSS_Plane *plane = DATA_PTR(self);
+    return RGSS_Vec2_New(plane->scroll[0], plane->scroll[1]);
+}
+
+static VALUE RGSS_Plane_SetScoll(VALUE self, VALUE value)
+{
+    RGSS_Plane *plane = DATA_PTR(self);
+    if (rb_obj_is_kind_of(value, rb_cVec2))
+    {
+        glm_vec2_copy(DATA_PTR(value), plane->scroll);
+    }
+    else
+    {
+        glm_vec2_zero(plane->scroll);
+    }
+    return value;
+}
+
+static VALUE RGSS_Plane_GetOrigin(VALUE self)
+{
+    RGSS_Plane *plane = DATA_PTR(self);
+    return RGSS_Vec2_New(plane->origin[0], plane->origin[1]);
+}
+
+static VALUE RGSS_Plane_SetOrigin(VALUE self, VALUE value)
+{
+    RGSS_Plane *plane = DATA_PTR(self);
+    if (rb_obj_is_kind_of(value, rb_cVec2))
+    {
+        glm_vec2_copy(DATA_PTR(value), plane->origin);
+    }
+    else
+    {
+        glm_vec2_zero(plane->origin);
+    }
+    return value;
+}
+
+static VALUE RGSS_Plane_SetSize(VALUE self, VALUE size)
+{
+    RGSS_Size *s = DATA_PTR(size);
+    if (s->width < 1)
+        rb_raise(rb_eArgError, "width must be greater than 0 (given %d)", s->width);
+    if (s->height < 1)
+        rb_raise(rb_eArgError, "height must be greater than 0 (given %d)", s->height);
+
+    rb_call_super(1, &size);
+    return size;
+}
+
+static VALUE RGSS_Plane_Update(VALUE self, VALUE delta)
+{
+    RGSS_Plane *plane = DATA_PTR(self);
+
+    vec2 vec;
+    glm_vec2_scale(plane->scroll, NUM2FLT(delta), vec);
+    glm_vec2_add(vec, plane->origin, plane->origin);
+    RGSS_Plane_UpdateVertices(self);
+
+    return rb_call_super(1, &delta);
+}
+
+static VALUE RGSS_Plane_Render(VALUE self, VALUE alpha)
+{
+
+    RGSS_Plane *plane = DATA_PTR(self);
+    if (NIL_P(plane->texture) || !plane->base.visible || plane->base.opacity < FLT_EPSILON)
+        return Qnil;
+
+    rb_call_super(1, &alpha);
+
+    RGSS_Texture *tex = DATA_PTR(plane->texture);
+    if (tex->id == 0)
+        rb_raise(rb_eRuntimeError, "disposed texture");
+
+    glBindSampler(0, plane->sampler);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex->id);
+    glBindVertexArray(plane->base.vao);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_BYTE, NULL);
+    glBindVertexArray(GL_NONE);
+    glBindSampler(0, GL_NONE);
+    return Qnil;
+}
+
 void RGSS_Init_Entity(VALUE parent)
 {
     rb_cEntity = rb_define_class_under(parent, "Entity", rb_cObject);
@@ -1176,7 +1451,7 @@ void RGSS_Init_Entity(VALUE parent)
     rb_define_method0(rb_cEntity, "angle", RGSS_Entity_GetAngle, 0);
     rb_define_method1(rb_cEntity, "angle=", RGSS_Entity_SetAngle, 1);
     rb_define_method0(rb_cEntity, "bounds", RGSS_Entity_GetBounds, 0);
-    rb_define_method2(rb_cEntity, "rotate", RGSS_Entity_Rotate, 2);
+    rb_define_methodm1(rb_cEntity, "rotate", RGSS_Entity_Rotate, -1);
     rb_define_method0(rb_cEntity, "x", RGSS_Entity_GetX, 0);
     rb_define_method1(rb_cEntity, "x=", RGSS_Entity_SetX, 1);
     rb_define_method0(rb_cEntity, "y", RGSS_Entity_GetY, 0);
@@ -1227,7 +1502,6 @@ void RGSS_Init_Entity(VALUE parent)
     rb_define_protected_method0(rb_cRenderable, "vao", RGSS_Renderable_GetVAO, 0);
     rb_define_protected_method0(rb_cRenderable, "vbo", RGSS_Renderable_GetVBO, 0);
     rb_define_protected_method0(rb_cRenderable, "ebo", RGSS_Renderable_GetEBO, 0);
-
     rb_define_const(rb_cRenderable, "VERTICES_COUNT", INT2NUM(VERTICES_COUNT));
     rb_define_const(rb_cRenderable, "VERTICES_SIZE", INT2NUM(VERTICES_SIZE));
     rb_define_const(rb_cRenderable, "VERTICES_STRIDE", INT2NUM(VERTICES_STRIDE));
@@ -1236,7 +1510,6 @@ void RGSS_Init_Entity(VALUE parent)
     rb_define_const(rb_cRenderable, "FLIP_X", INT2NUM(RGSS_FLIP_X));
     rb_define_const(rb_cRenderable, "FLIP_Y", INT2NUM(RGSS_FLIP_Y));
     rb_define_const(rb_cRenderable, "FLIP_BOTH", INT2NUM(RGSS_FLIP_BOTH));
-
     rb_include_module(rb_cRenderable, rb_mGL);
     rb_define_alias(rb_cRenderable, "depth=", "z=");
 
@@ -1252,6 +1525,7 @@ void RGSS_Init_Entity(VALUE parent)
     rb_cSprite = rb_define_class_under(parent, "Sprite", rb_cRenderable);
     rb_define_alloc_func(rb_cSprite, RGSS_Sprite_Alloc);
     rb_define_methodm1(rb_cSprite, "initialize", RGSS_Sprite_Initialize, -1);
+    rb_define_method0(rb_cSprite, "viewport", RGSS_Sprite_GetViewport, 0);
     rb_define_method0(rb_cSprite, "src_rect", RGSS_Sprite_GetSrcRect, 0);
     rb_define_method1(rb_cSprite, "src_rect=", RGSS_Sprite_SetSrcRect, 1);
     rb_define_method0(rb_cSprite, "texture", RGSS_Sprite_GetTexture, 0);
@@ -1259,14 +1533,32 @@ void RGSS_Init_Entity(VALUE parent)
     rb_define_method1(rb_cSprite, "render", RGSS_Sprite_Render, 1);
     rb_define_protected_method0(rb_cSprite, "update_vertices", RGSS_Sprite_UpdateVertices, 0);
 
-
     rb_cViewport = rb_define_class_under(parent, "Viewport", rb_cRenderable);
     rb_define_alloc_func(rb_cViewport, RGSS_Viewport_Alloc);
     rb_define_methodm1(rb_cViewport, "initialize", RGSS_Viewport_Initialize, -1);
     rb_define_method1(rb_cViewport, "render", RGSS_Viewport_Render, 1);
-    rb_define_method0(rb_cViewport, "batch", RGSS_Viewport_GetBatch, 0);
+    rb_define_protected_method0(rb_cViewport, "batch", RGSS_Viewport_GetBatch, 0);
+    rb_define_method0(rb_cViewport, "dispose", RGSS_Viewport_Dispose, 0);
     rb_define_method0(rb_cViewport, "back_color", RGSS_Viewport_GetBackColor, 0);
     rb_define_method1(rb_cViewport, "back_color=", RGSS_Viewport_SetBackColor, 1);
+
+    rb_cPlane = rb_define_class_under(parent, "Plane", rb_cRenderable);
+    rb_define_alloc_func(rb_cPlane, RGSS_Plane_Alloc);
+    rb_define_method0(rb_cPlane, "dispose", RGSS_Plane_Dispose, 0);
+    rb_define_methodm1(rb_cPlane, "initialize", RGSS_Plane_Initialize, -1);
+    rb_define_method0(rb_cPlane, "zoom",  RGSS_Plane_GetZoom, 0);
+    rb_define_method1(rb_cPlane, "zoom=", RGSS_Plane_SetZoom, 1);
+    rb_define_method0(rb_cPlane, "scroll",  RGSS_Plane_GetScoll, 0);
+    rb_define_method1(rb_cPlane, "scroll=", RGSS_Plane_SetScoll, 1);
+    rb_define_method0(rb_cPlane, "origin",  RGSS_Plane_GetOrigin, 0);
+    rb_define_method1(rb_cPlane, "origin=", RGSS_Plane_SetOrigin, 1);
+    rb_define_method1(rb_cPlane, "size=", RGSS_Plane_SetSize, 1);
+    rb_define_method1(rb_cPlane, "update", RGSS_Plane_Update, 1);
+    rb_define_method0(rb_cPlane, "texture",  RGSS_Plane_GetTexture, 0);
+    rb_define_method1(rb_cPlane, "texture=", RGSS_Plane_SetTexture, 1);
+    rb_define_method1(rb_cPlane, "render", RGSS_Plane_Render, 1);
+    rb_define_protected_method0(rb_cPlane, "update_vertices", RGSS_Plane_UpdateVertices, 0);
+
 
     // TODO: Origin for viewport, offset children from it each draw/update?
 

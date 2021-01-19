@@ -58,8 +58,11 @@ module RGSS
     alias_method :grey, :gray
 
     ##
+    # An empty {Tone} instance.
+    NONE = Tone.new(0.0, 0.0, 0.0, 0.0)
+    
+    ##
     # A full grayscale {Tone} instance.
     GRAY = Tone.new(0.0, 0.0, 0.0, 1.0)
-
   end
 end
