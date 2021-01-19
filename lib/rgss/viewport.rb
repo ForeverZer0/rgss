@@ -11,7 +11,7 @@ module RGSS
     def initialize(*args)
       super(Graphics.batch)
 
-      @batch = Batch.new
+      @batch = Graphics::Batch.new
       rect = Rect.new(*args)
       @ortho = Mat4.ortho(0, rect.width, 0.0, rect.height, -1.0, 1.0)
 

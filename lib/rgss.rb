@@ -23,8 +23,6 @@ end
 require_relative 'rgss/version'
 require_relative 'rgss/rgss'
 
-require_relative 'rgss/blend'
-require_relative 'rgss/batch'
 require_relative 'rgss/renderable'
 require_relative 'rgss/sprite'
 require_relative 'rgss/viewport'
@@ -33,9 +31,6 @@ require_relative 'rgss/font'
 
 
 module RGSS
-
-
-
 
   module Game
 
@@ -48,8 +43,8 @@ module RGSS
       $sprite.y += SPEED if Input.press?(:DOWN)
       $sprite.x -= SPEED if Input.press?(:LEFT)
       $sprite.x += SPEED if Input.press?(:RIGHT)
-      $fog.zoom += vec2(0.05) if Input.press?(:RAISE)
-      $fog.zoom -= vec2(0.05) if Input.press?(:LOWER)
+      $sprite.z += 1 if Input.press?(:RAISE)
+      $sprite.z -= 1 if Input.press?(:LOWER)
 
       $sprite.update(delta)
       $v.update(delta)
@@ -66,12 +61,6 @@ module RGSS
     end
   end
 
-  module Graphics
-
-    def self.render(state)
-      @batch.each { |obj| obj.render(state) }
-    end
-  end
 
 
   Game.create(1024, 768, "RGSS", resizable: true, vsync: true)

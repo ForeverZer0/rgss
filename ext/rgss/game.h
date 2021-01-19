@@ -1,6 +1,7 @@
 #ifndef RGSS_GAME_H
 #define RGSS_GAME_H 1
 
+#include "glad.h"
 #include "rgss.h"
 
 #define GLFW_INCLUDE_NONE 1
@@ -22,16 +23,50 @@
         ((float *)DATA_PTR(self))[offset] = NUM2FLT(value);                                                            \
         return value;                                                                                                  \
     }
-#define VEC_ATTR_ACCESSOR(type, field, offset)                                                                             \
+#define VEC_ATTR_ACCESSOR(type, field, offset)                                                                         \
     VEC_ATTR_READER(type, field, offset)                                                                               \
     VEC_ATTR_WRITER(type, field, offset)
 
 #define CREATE_ALLOC_FUNC(type, align, size)                                                                           \
     static VALUE type##_alloc(VALUE klass)                                                                             \
     {                                                                                                                  \
-        float *v = RGSS_MALLOC_ALIGNED(size, align);                                                                    \
+        float *v = RGSS_MALLOC_ALIGNED(size, align);                                                                   \
         return Data_Wrap_Struct(klass, NULL, free, v);                                                                 \
     }
+
+typedef struct
+{
+    GLenum op;
+    GLenum src;
+    GLenum dst;
+} RGSS_Blend;
+
+typedef struct
+{
+    vec4 *model;
+    vec3 position;
+    vec3 velocity;
+    vec3 scale;
+    vec3 pivot;
+    float angle;
+    int depth;
+    vec3 size;
+} RGSS_Entity;
+
+typedef struct
+{
+    RGSS_Entity entity;
+    GLuint vao, vbo, ebo;
+    RGSS_Color color;
+    RGSS_Tone tone;
+    float opacity;
+    int visible;
+    float hue;
+    RGSS_Color flash_color;
+    int flash_duration;
+    RGSS_Blend blend;
+    VALUE parent;
+} RGSS_Renderable;
 
 typedef struct
 {
@@ -41,6 +76,12 @@ typedef struct
     vec_int_t gamepad_buttons;
     UT_hash_handle hh;
 } RGSS_Mapping;
+
+typedef struct
+{
+    int invalid;
+    vec_t(VALUE) items;
+} RGSS_Batch;
 
 // typedef struct
 // {
@@ -69,11 +110,22 @@ typedef struct
     struct
     {
         vec4 *projection;
-        uint32_t ubo;
         vec2 resolution;
         vec2 ratio;
+        GLuint ubo;
         RGSS_Rect viewport;
         RGSS_Color color;
+        RGSS_Batch batch;
+        struct
+        {
+            GLuint id;
+            GLint model;
+            GLint hue;
+            GLint color;
+            GLint tone;
+            GLint flash;
+            GLint opacity;
+        } shader;
     } graphics;
     struct
     {
@@ -153,5 +205,10 @@ static inline char *RGSS_FileRead(VALUE path)
     buffer[0] = '\0';
     return buffer;
 }
+
+int RGSS_Batch_Sort(const void *obj1, const void *obj2);
+VALUE RGSS_Batch_Add(VALUE self, VALUE obj);
+VALUE RGSS_Batch_Remove(VALUE self, VALUE obj);
+VALUE RGSS_Batch_Invalidate(VALUE self);
 
 #endif /* RGSS_GAME_H */

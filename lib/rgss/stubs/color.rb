@@ -10,7 +10,7 @@ module RGSS
   # @note All out of range values are automatically clamped to their respective limits.
   #
   # @note All relevant methods implemented in `Object` (i.e. `#dup`, `#clone`, Marshalling, equality) have also been
-  #   properly implemented/overridden, but have been omitted from the documentation for brevity.
+  #   properly implemented/overridden, but have been omitted from the documentation for the sake of brevity.
   class Color
 
     ##
@@ -47,10 +47,10 @@ module RGSS
     # @return [Array(Float, Float, Float, Float)] The newly created Array.
     # @example
     #   Color::BLUE_VIOLET.to_a
-    #   #=> []
+    #   #=> [0.54118, 0.16863, 0.88627, 1.00000]
     def to_a
     end
-    BLUE_VIOLET = Color.new(0.54118, 0.16863, 0.88627, 1.00000)
+
     ##
     # Creates a hash instance that represents this object.
     # @return [Hash{Symbol => Float}] The newly created Hash.

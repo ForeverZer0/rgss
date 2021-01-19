@@ -28,8 +28,11 @@ extern VALUE rb_cImage;
 
 extern VALUE rb_mGraphics;
 
+extern VALUE rb_cBatch;
 extern VALUE rb_cEntity;
+extern VALUE rb_cRenderable;
 extern VALUE rb_cTexture;
+
 extern VALUE rb_cFont;
 
 extern VALUE rb_cColor;
@@ -145,6 +148,9 @@ static inline VALUE RGSS_IVec4_New(VALUE klass, int x, int y, int w, int h)
 #define VEC4_WRAP(v) Data_Wrap_Struct(rb_cVec4, NULL, free, v)
 #define MAT3_WRAP(m) Data_Wrap_Struct(rb_cMat3, NULL, free, m)
 #define MAT4_WRAP(m) Data_Wrap_Struct(rb_cMat4, NULL, free, m)
+
+extern const char *SPRITE_VERT_SRC;
+extern const char *SPRITE_FRAG_SRC;
 
 static inline void *RGSS_MALLOC_ALIGNED(size_t size, size_t alignment)
 {

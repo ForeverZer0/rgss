@@ -1,54 +1,23 @@
 #include "game.h"
-#include "glad.h"
 
-#define VERTICES_COUNT 16
-#define VERTICES_SIZE (SIZEOF_FLOAT * VERTICES_COUNT)
+#define VERTICES_COUNT  16
+#define VERTICES_SIZE   (SIZEOF_FLOAT * VERTICES_COUNT)
 #define VERTICES_STRIDE (SIZEOF_FLOAT * 4)
-#define INDICES_COUNT 6
+#define INDICES_COUNT   6
+
+#define RGSS_SHADER RGSS_GAME.graphics.shader
 
 VALUE rb_cEntity;
 VALUE rb_cRenderable;
 VALUE rb_cBlend;
 
-ID id_invalidate;
-ID id_add;
-ID id_remove;
-
 vec3 AXIS_Z = {0.0f, 0.0f, 1.0f};
 
-typedef struct 
-{
-    GLenum op;
-    GLenum src;
-    GLenum dst;
-} RGSS_Blend;
-
 typedef struct
 {
-    vec4 *model;
-    vec3 position;
-    vec3 velocity;
-    vec3 scale;
-    vec3 pivot;
-    float angle;
-    int depth;
-    vec3 size;
-} RGSS_Entity;
+    RGSS_Renderable base;
 
-typedef struct
-{
-    RGSS_Entity entity;
-    GLuint vao, vbo, ebo;
-    RGSS_Color color;
-    RGSS_Tone tone;
-    float opacity;
-    int visible;
-    float hue;
-    RGSS_Color flash_color;
-    int flash_duration;
-    RGSS_Blend blend;
-    VALUE parent;
-} RGSS_Renderable;
+} RGSS_Sprite;
 
 // TODO: Use direct pointer with RUBY_NEVER_FREE instead of new vector?
 
@@ -97,7 +66,7 @@ static void RGSS_Entity_Free(void *data)
     }
 }
 
-static void RGSS_Enityt_Init(RGSS_Entity *entity)
+static void RGSS_Enity_Init(RGSS_Entity *entity)
 {
     entity->model = RGSS_MAT4_NEW;
     glm_mat4_identity(entity->model);
@@ -110,10 +79,25 @@ static void RGSS_Enityt_Init(RGSS_Entity *entity)
     entity->depth = 0;
 }
 
+static void RGSS_Renderable_Init(RGSS_Renderable *obj)
+{
+    obj->opacity = 1.0f;
+    obj->visible = true;
+    obj->flash_duration = -1;
+
+    obj->blend.op = GL_FUNC_ADD;
+    obj->blend.src = GL_SRC_ALPHA;
+    obj->blend.dst = GL_ONE_MINUS_SRC_ALPHA;
+
+    glGenVertexArrays(1, &obj->vao);
+    glGenBuffers(1, &obj->vbo);
+    glGenBuffers(1, &obj->ebo);
+}
+
 static VALUE RGSS_Entity_Alloc(VALUE klass)
 {
     RGSS_Entity *entity = ALLOC(RGSS_Entity);
-    RGSS_Enityt_Init(entity);
+    RGSS_Enity_Init(entity);
     return Data_Wrap_Struct(klass, NULL, RGSS_Entity_Free, entity);
 }
 
@@ -374,7 +358,7 @@ static VALUE RGSS_Renderable_Alloc(VALUE klass)
 {
     RGSS_Renderable *obj = ALLOC(RGSS_Renderable);
     memset(obj, 0, sizeof(RGSS_Renderable));
-    RGSS_Enityt_Init(&obj->entity);
+    RGSS_Enity_Init(&obj->entity);
     return Data_Wrap_Struct(klass, RGSS_Renderable_Mark, RUBY_DEFAULT_FREE, obj);
 }
 
@@ -382,35 +366,22 @@ static VALUE RGSS_Renderable_Initialize(VALUE self, VALUE parent)
 {
     if (NIL_P(parent))
         rb_raise(rb_eArgError, "parent cannot be nil");
-
-    if (!rb_respond_to(parent, id_invalidate))
-        rb_raise(rb_eArgError, "parent must response to #invalidate");
-    if (!rb_respond_to(parent, id_add))
-        rb_raise(rb_eArgError, "parent must response to #add");
-    if (!rb_respond_to(parent, id_remove))
-        rb_raise(rb_eArgError, "parent must response to #remove");
+    if (rb_obj_is_kind_of(parent, rb_cBatch) != Qtrue)
+        rb_raise(rb_eTypeError, "%s is not a Batch", CLASS_NAME(parent));
 
     RGSS_Renderable *obj = DATA_PTR(self);
-    obj->opacity = 1.0f;
-    obj->visible = true;
-    obj->flash_duration = -1;
+    RGSS_Renderable_Init(obj);
 
-    obj->blend.op = GL_FUNC_ADD;
-    obj->blend.src = GL_SRC_ALPHA;
-    obj->blend.dst = GL_ONE_MINUS_SRC_ALPHA;
-
-    glGenVertexArrays(1, &obj->vao);
-    glGenBuffers(1, &obj->vbo);
-    glGenBuffers(1, &obj->ebo);
-
-    rb_funcall(parent, id_add, 1, self);
+    obj->parent = parent;
+    RGSS_Batch_Add(parent, self);
     return self;
 }
 
 static VALUE RGSS_Renderable_Dispose(VALUE self)
 {
-    RGSS_Renderable *obj = ALLOC(RGSS_Renderable);
-    rb_funcall(obj->parent, id_remove, 1, self);
+    RGSS_Renderable *obj = DATA_PTR(self);
+    RGSS_Batch_Remove(obj->parent, self);
+    obj->parent = Qnil;
 
     if (obj->vao)
     {
@@ -432,21 +403,20 @@ static VALUE RGSS_Renderable_Dispose(VALUE self)
 
 static VALUE RGSS_Renderable_IsDisposed(VALUE self)
 {
-    RGSS_Renderable *obj = ALLOC(RGSS_Renderable);
+    RGSS_Renderable *obj = DATA_PTR(self);
     return RB_BOOL(obj->vao == GL_NONE);
 }
 
 static VALUE RGSS_Renderable_SetDepth(VALUE self, VALUE value)
 {
-    rb_call_super(1, &value);
-    RGSS_Renderable *obj = ALLOC(RGSS_Renderable);
-    rb_funcall(obj->parent, id_invalidate, 0);
-    return value;
+    RGSS_Renderable *obj = DATA_PTR(self);
+    RGSS_Batch_Invalidate(obj->parent);
+    return rb_call_super(1, &value);    
 }
 
 static VALUE RGSS_Renderable_GetParent(VALUE self)
 {
-    RGSS_Renderable *obj = ALLOC(RGSS_Renderable);
+    RGSS_Renderable *obj = DATA_PTR(self);
     return obj->parent;
 }
 
@@ -515,7 +485,6 @@ static VALUE RGSS_Renderable_GetTone(VALUE self)
     glm_vec4_copy(obj->tone, tone);
     return Data_Wrap_Struct(rb_cTone, NULL, free, tone);
 }
-
 
 static VALUE RGSS_Renderable_SetTone(VALUE self, VALUE tone)
 {
@@ -597,7 +566,7 @@ static VALUE RGSS_Renderable_Flash(VALUE self, VALUE color, VALUE ticks)
         glm_vec4_copy(v, obj->flash_color);
         obj->flash_duration = NUM2INT(ticks);
         if (obj->flash_duration < -1)
-            obj->flash_duration = -1;  
+            obj->flash_duration = -1;
     }
     else
     {
@@ -656,16 +625,16 @@ static VALUE RGSS_Renderable_VertexSetup(int argc, VALUE *argv, VALUE self)
     else
         glBufferData(GL_ARRAY_BUFFER, VERTICES_SIZE, NULL, vu);
 
-    GLubyte ind[6] = { 0, 1, 2, 0, 3, 1 };
+    GLubyte ind[6] = {0, 1, 2, 0, 3, 1};
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj->ebo);
-    
+
     if (RTEST(indices))
     {
         if (rb_array_len(indices) != INDICES_COUNT)
-            rb_raise(rb_eArgError, "vertices size is not equal to INDICES_COUNT");  
+            rb_raise(rb_eArgError, "vertices size is not equal to INDICES_COUNT");
 
         for (long i = 0; i < INDICES_COUNT; i++)
-            ind[i] = (GLubyte) NUM2CHR(rb_ary_entry(indices, i));
+            ind[i] = (GLubyte)NUM2CHR(rb_ary_entry(indices, i));
     }
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, INDICES_COUNT, ind, eu);
 
@@ -677,17 +646,36 @@ static VALUE RGSS_Renderable_VertexSetup(int argc, VALUE *argv, VALUE self)
 
 static VALUE RGSS_Renderable_GetVAO(VALUE self)
 {
-    return UINT2NUM(((RGSS_Renderable*) DATA_PTR(self))->vao);
+    return UINT2NUM(((RGSS_Renderable *)DATA_PTR(self))->vao);
 }
 
 static VALUE RGSS_Renderable_GetVBO(VALUE self)
 {
-    return UINT2NUM(((RGSS_Renderable*) DATA_PTR(self))->vbo);
+    return UINT2NUM(((RGSS_Renderable *)DATA_PTR(self))->vbo);
 }
 
 static VALUE RGSS_Renderable_GetEBO(VALUE self)
 {
-    return UINT2NUM(((RGSS_Renderable*) DATA_PTR(self))->ebo);
+    return UINT2NUM(((RGSS_Renderable *)DATA_PTR(self))->ebo);
+}
+
+static VALUE RGSS_Renderable_Render(VALUE self, VALUE alpha)
+{
+    RGSS_Renderable *obj = DATA_PTR(self);
+    if (!obj->visible || obj->opacity < FLT_EPSILON)
+        return Qnil;
+
+    glBlendEquation(obj->blend.op);
+    glBlendFunc(obj->blend.src, obj->blend.dst);
+
+
+    glUseProgram(RGSS_SHADER.id);
+    glUniformMatrix4fv(RGSS_SHADER.model, 1, false, obj->entity.model[0]);
+    glUniform4fv(RGSS_SHADER.color, 1, obj->color);
+    glUniform4fv(RGSS_SHADER.tone, 1, obj->tone);
+    glUniform4fv(RGSS_SHADER.flash, 1, obj->flash_color);
+    glUniform1f(RGSS_SHADER.hue, obj->hue);
+    glUniform1f(RGSS_SHADER.opacity, obj->opacity);
 }
 
 static VALUE RGSS_Blend_Alloc(VALUE klass)
@@ -706,17 +694,17 @@ static VALUE RGSS_Blend_Initialize(VALUE self, VALUE op, VALUE src, VALUE dst)
 
 static VALUE RGSS_Blend_GetOp(VALUE self)
 {
-    return INT2NUM(((RGSS_Blend*) DATA_PTR(self))->op);
+    return INT2NUM(((RGSS_Blend *)DATA_PTR(self))->op);
 }
 
 static VALUE RGSS_Blend_GetSrc(VALUE self)
 {
-    return INT2NUM(((RGSS_Blend*) DATA_PTR(self))->src);
+    return INT2NUM(((RGSS_Blend *)DATA_PTR(self))->src);
 }
 
 static VALUE RGSS_Blend_GetDst(VALUE self)
 {
-    return INT2NUM(((RGSS_Blend*) DATA_PTR(self))->dst);
+    return INT2NUM(((RGSS_Blend *)DATA_PTR(self))->dst);
 }
 
 static VALUE RGSS_Blend_Equal(VALUE self, VALUE other)
@@ -770,9 +758,9 @@ void RGSS_Init_Entity(VALUE parent)
     rb_define_method0(rb_cRenderable, "disposed?", RGSS_Renderable_IsDisposed, 0);
     rb_define_method0(rb_cRenderable, "color", RGSS_Renderable_GetColor, 0);
     rb_define_method1(rb_cRenderable, "color=", RGSS_Renderable_SetColor, 1);
-    rb_define_method0(rb_cRenderable, "flash_color",  RGSS_Renderable_GetFlashColor, 0);
+    rb_define_method0(rb_cRenderable, "flash_color", RGSS_Renderable_GetFlashColor, 0);
     rb_define_method1(rb_cRenderable, "flash_color=", RGSS_Renderable_SetFlashColor, 1);
-    rb_define_method0(rb_cRenderable, "flash_duration",  RGSS_Renderable_GetFlashDuration, 0);
+    rb_define_method0(rb_cRenderable, "flash_duration", RGSS_Renderable_GetFlashDuration, 0);
     rb_define_method1(rb_cRenderable, "flash_duration=", RGSS_Renderable_SetFlashDuration, 1);
     rb_define_method0(rb_cRenderable, "tone", RGSS_Renderable_GetTone, 0);
     rb_define_method1(rb_cRenderable, "tone=", RGSS_Renderable_SetTone, 1);
@@ -787,6 +775,7 @@ void RGSS_Init_Entity(VALUE parent)
     rb_define_method0(rb_cRenderable, "blend", RGSS_Renderable_GetBlend, 0);
     rb_define_method1(rb_cRenderable, "blend=", RGSS_Renderable_SetBlend, 1);
     rb_define_method1(rb_cRenderable, "z=", RGSS_Renderable_SetDepth, 1);
+    rb_define_method1(rb_cRenderable, "render", RGSS_Renderable_Render, 1);
     rb_define_protected_method0(rb_cRenderable, "parent", RGSS_Renderable_GetParent, 0);
     rb_define_protected_methodm1(rb_cRenderable, "vertex_setup", RGSS_Renderable_VertexSetup, -1);
     rb_define_protected_method0(rb_cRenderable, "vao", RGSS_Renderable_GetVAO, 0);
@@ -795,6 +784,7 @@ void RGSS_Init_Entity(VALUE parent)
     rb_define_const(rb_cRenderable, "VERTICES_COUNT", INT2NUM(VERTICES_COUNT));
     rb_define_const(rb_cRenderable, "VERTICES_SIZE", INT2NUM(VERTICES_SIZE));
     rb_define_const(rb_cRenderable, "VERTICES_STRIDE", INT2NUM(VERTICES_STRIDE));
+    rb_define_const(rb_cRenderable, "INDICES_COUNT", INT2NUM(INDICES_COUNT));
     rb_include_module(rb_cRenderable, rb_mGL);
     rb_define_alias(rb_cRenderable, "depth=", "z=");
 
@@ -812,8 +802,4 @@ void RGSS_Init_Entity(VALUE parent)
     b->src = GL_SRC_ALPHA;
     b->dst = GL_ONE_MINUS_SRC_ALPHA;
     rb_define_const(rb_cBlend, "DEFAULT", Data_Wrap_Struct(rb_cBlend, NULL, RUBY_DEFAULT_FREE, b));
-
-    id_invalidate = rb_intern("invalidate");
-    id_add = rb_intern("add");
-    id_remove = rb_intern("remove");
 }

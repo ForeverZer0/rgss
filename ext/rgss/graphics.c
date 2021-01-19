@@ -51,6 +51,155 @@ void RGSS_Graphics_GLCallback(GLenum source, GLenum type, GLuint id, GLenum seve
     glViewport(rect.x, rect.y, rect.width, rect.height);                                                               \
     glScissor(rect.x, rect.y, rect.width, rect.height)
 
+static VALUE RGSS_Shader_Alloc(VALUE klass)
+{
+    RGSS_Shader *shader = ALLOC(RGSS_Shader);
+    memset(shader, 0, sizeof(RGSS_Shader));
+    return Data_Wrap_Struct(klass, NULL, RUBY_DEFAULT_FREE, shader);
+}
+
+static GLuint RGSS_Shader_CreateUnit(const char *source, GLenum type)
+{
+    if (source == NULL)
+        rb_raise(rb_eArgError, "shader source cannot be nil");
+
+    GLuint id = glCreateShader(type);
+    GLint i = strlen(source) + 1;
+
+    glShaderSource(id, 1, &source, &i);
+    glCompileShader(id);
+
+    glGetShaderiv(id, GL_COMPILE_STATUS, &i);
+    if (i == GL_TRUE)
+        return id;
+
+    glGetShaderiv(id, GL_INFO_LOG_LENGTH, &i);
+    char buffer[i];
+    glGetShaderInfoLog(id, i, NULL, buffer);
+    glDeleteShader(id);
+    rb_raise(rb_eRuntimeError, "failed to compile shader: %s", buffer);
+}
+
+static void RGSS_Shader_CreateProgram(const char *v_src, const char *f_src, const char *g_src, RGSS_Shader *shader)
+{
+    shader->id = glCreateProgram();
+
+    GLuint v, f, g;
+    v = RGSS_Shader_CreateUnit(v_src, GL_VERTEX_SHADER);
+    f = RGSS_Shader_CreateUnit(f_src, GL_FRAGMENT_SHADER);
+    g = g_src == NULL ? 0 : RGSS_Shader_CreateUnit(g_src, GL_GEOMETRY_SHADER);
+
+    glAttachShader(shader->id, v);
+    glAttachShader(shader->id, f);
+    if (g > 0)
+        glAttachShader(shader->id, g);
+
+    glLinkProgram(shader->id);
+
+    glDetachShader(shader->id, v);
+    glDeleteShader(v);
+    glDetachShader(shader->id, f);
+    glDeleteShader(f);
+    if (g > 0)
+    {
+        glDetachShader(shader->id, g);
+        glDeleteShader(g);
+    }
+
+    GLint i;
+    glGetProgramiv(shader->id, GL_LINK_STATUS, &i);
+    if (i != GL_TRUE)
+    {
+        glGetProgramiv(shader->id, GL_INFO_LOG_LENGTH, &i);
+        char buffer[i];
+
+        glGetProgramInfoLog(shader->id, i, NULL, buffer);
+        glDeleteProgram(shader->id);
+        shader->id = 0;
+
+        rb_raise(rb_eRuntimeError, "failed to link shader program: %s", buffer);
+    }
+
+    GLint index = glGetUniformBlockIndex(shader->id, "ortho");
+    if (index != GL_INVALID_INDEX)
+        glUniformBlockBinding(shader->id, index, 0);
+}
+
+static VALUE RGSS_Shader_Load(int argc, VALUE *argv, VALUE klass)
+{
+    VALUE v, f, g;
+    rb_scan_args(argc, argv, "21", &v, &f, &g);
+
+    char *vert = RGSS_FileRead(v);
+    char *frag = RGSS_FileRead(f);
+    char *geom = RTEST(g) ? RGSS_FileRead(g) : NULL;
+
+    RGSS_Shader *shader = ALLOC(RGSS_Shader);
+    memset(shader, 0, sizeof(RGSS_Shader));
+
+    RGSS_Shader_CreateProgram(vert, frag, geom, shader);
+    xfree(vert);
+    xfree(frag);
+    if (geom != NULL)
+        xfree(geom);
+
+    return Data_Wrap_Struct(klass, NULL, RUBY_DEFAULT_FREE, shader);
+}
+
+static VALUE RGSS_Shader_Initialize(int argc, VALUE *argv, VALUE self)
+{
+    VALUE v, f, g;
+    rb_scan_args(argc, argv, "21", &v, &f, &g);
+
+    RGSS_Shader *shader = DATA_PTR(self);
+    char *vert = StringValueCStr(v);
+    char *frag = StringValueCStr(f);
+    char *geom = RTEST(g) ? StringValueCStr(g) : NULL;
+
+    RGSS_Shader_CreateProgram(vert, frag, geom, shader);
+    return self;
+}
+
+static VALUE RGSS_Shader_Use(VALUE self)
+{
+    RGSS_Shader *shader = DATA_PTR(self);
+    if (shader->id == GL_NONE)
+        rb_raise(rb_eRuntimeError, "disposed shader program");
+    glUseProgram(shader->id);
+    return self;
+}
+
+static VALUE RGSS_Shader_GetID(VALUE self)
+{
+    RGSS_Shader *shader = DATA_PTR(self);
+    return UINT2NUM(shader->id);
+}
+
+static VALUE RGSS_Shader_Locate(VALUE self, VALUE uniform)
+{
+    RGSS_Shader *shader = DATA_PTR(self);
+    if (uniform == Qnil)
+        return INT2NUM(-1);
+    return INT2NUM(glGetUniformLocation(shader->id, StringValueCStr(uniform)));
+}
+
+static VALUE RGSS_Shader_Dispose(VALUE self)
+{
+    RGSS_Shader *shader = DATA_PTR(self);
+    if (shader->id != GL_NONE)
+    {
+        glDeleteProgram(shader->id);
+        shader->id = GL_NONE;
+    }
+    return Qnil;
+}
+
+static VALUE RGSS_Shader_IsDisposed(VALUE self)
+{
+    RGSS_Shader *shader = DATA_PTR(self);
+    return RB_BOOL(shader->id == GL_NONE);
+}
+
 static void RGSS_Graphics_Reshape(int width, int height)
 {
     // Calculate ratios between window and internal resolution
@@ -220,6 +369,23 @@ void RGSS_Graphics_Init(GLFWwindow *window, int width, int height, int vsync)
             glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
         }
     }
+
+    vec_init(&RGSS_GAME.graphics.batch.items);
+    
+    VALUE shaders[2];
+    shaders[0] = rb_str_new_cstr(SPRITE_VERT_SRC);
+    shaders[1] = rb_str_new_cstr(SPRITE_FRAG_SRC);
+    VALUE program = RGSS_Shader_Alloc(rb_cShader);
+    RGSS_Shader_Initialize(2, shaders, program);
+
+    GLuint id = ((RGSS_Shader*)DATA_PTR(program))->id;
+    RGSS_GAME.graphics.shader.id = id;
+    RGSS_GAME.graphics.shader.model = glGetUniformLocation(id, "model");
+    RGSS_GAME.graphics.shader.color = glGetUniformLocation(id, "color");
+    RGSS_GAME.graphics.shader.tone = glGetUniformLocation(id, "tone");
+    RGSS_GAME.graphics.shader.flash = glGetUniformLocation(id, "flash");
+    RGSS_GAME.graphics.shader.hue = glGetUniformLocation(id, "hue");
+    RGSS_GAME.graphics.shader.opacity = glGetUniformLocation(id, "opacity");
 }
 
 void RGSS_Graphics_Deinit(GLFWwindow *window)
@@ -229,12 +395,28 @@ void RGSS_Graphics_Deinit(GLFWwindow *window)
     if (RGSS_GAME.graphics.projection)
         free(RGSS_GAME.graphics.projection);
     glDeleteBuffers(1, &RGSS_GAME.graphics.ubo);
+
+    // TODO: Iterate and destroy children
+    vec_deinit(&RGSS_GAME.graphics.batch.items);
 }
 
 void RGSS_Graphics_Render(double alpha)
 {
     glClear(GL_COLOR_BUFFER_BIT);
-    rb_funcall(rb_mGraphics, render_id, 1, DBL2NUM(alpha));
+
+    if (RGSS_GAME.graphics.batch.invalid)
+    {
+        vec_sort(&RGSS_GAME.graphics.batch.items, RGSS_Batch_Sort);
+        RGSS_GAME.graphics.batch.invalid = false;
+    }
+
+    VALUE n = DBL2NUM(alpha);
+    VALUE obj;
+    int i;
+    vec_foreach(&RGSS_GAME.graphics.batch.items, obj, i)
+    {
+        rb_funcall2(obj, render_id, 1, &n);
+    }
 
     RGSS_GAME.time.fps_count++;
     RGSS_GAME.time.total_frames++;
@@ -305,154 +487,12 @@ static VALUE RGSS_Graphics_GetUniformBlock(VALUE graphics)
     return UINT2NUM(RGSS_GAME.graphics.ubo);
 }
 
-static VALUE RGSS_Shader_Alloc(VALUE klass)
+static VALUE RGSS_Graphics_GetBatch(VALUE graphics)
 {
-    RGSS_Shader *shader = ALLOC(RGSS_Shader);
-    memset(shader, 0, sizeof(RGSS_Shader));
-    return Data_Wrap_Struct(klass, NULL, RUBY_DEFAULT_FREE, shader);
+    RGSS_ASSERT_GAME;
+    return Data_Wrap_Struct(rb_cBatch, NULL, RUBY_NEVER_FREE, &RGSS_GAME.graphics.batch);
 }
 
-static GLuint RGSS_Shader_CreateUnit(const char *source, GLenum type)
-{
-    if (source == NULL)
-        rb_raise(rb_eArgError, "shader source cannot be nil");
-
-    GLuint id = glCreateShader(type);
-    GLint i = strlen(source) + 1;
-
-    glShaderSource(id, 1, &source, &i);
-    glCompileShader(id);
-
-    glGetShaderiv(id, GL_COMPILE_STATUS, &i);
-    if (i == GL_TRUE)
-        return id;
-
-    glGetShaderiv(id, GL_INFO_LOG_LENGTH, &i);
-    char buffer[i];
-    glGetShaderInfoLog(id, i, NULL, buffer);
-    glDeleteShader(id);
-    rb_raise(rb_eRuntimeError, "failed to compile shader: %s", buffer);
-}
-
-static void RGSS_Shader_CreateProgram(const char *v_src, const char *f_src, const char *g_src, RGSS_Shader *shader)
-{
-    shader->id = glCreateProgram();
-
-    GLuint v, f, g;
-    v = RGSS_Shader_CreateUnit(v_src, GL_VERTEX_SHADER);
-    f = RGSS_Shader_CreateUnit(f_src, GL_FRAGMENT_SHADER);
-    g = g_src == NULL ? 0 : RGSS_Shader_CreateUnit(g_src, GL_GEOMETRY_SHADER);
-
-    glAttachShader(shader->id, v);
-    glAttachShader(shader->id, f);
-    if (g > 0)
-        glAttachShader(shader->id, g);
-
-    glLinkProgram(shader->id);
-
-    glDetachShader(shader->id, v);
-    glDeleteShader(v);
-    glDetachShader(shader->id, f);
-    glDeleteShader(f);
-    if (g > 0)
-    {
-        glDetachShader(shader->id, g);
-        glDeleteShader(g);
-    }
-
-    GLint i;
-    glGetProgramiv(shader->id, GL_LINK_STATUS, &i);
-    if (i != GL_TRUE)
-    {
-        glGetProgramiv(shader->id, GL_INFO_LOG_LENGTH, &i);
-        char buffer[i];
-
-        glGetProgramInfoLog(shader->id, i, NULL, buffer);
-        glDeleteProgram(shader->id);
-        shader->id = 0;
-
-        rb_raise(rb_eRuntimeError, "failed to link shader program: %s", buffer);
-    }
-
-    GLint index = glGetUniformBlockIndex(shader->id, "ortho");
-    if (index != GL_INVALID_INDEX)
-        glUniformBlockBinding(shader->id, index, 0);
-}
-
-static VALUE RGSS_Shader_Load(int argc, VALUE *argv, VALUE klass)
-{
-    VALUE v, f, g;
-    rb_scan_args(argc, argv, "21", &v, &f, &g);
-
-    char *vert = RGSS_FileRead(v);
-    char *frag = RGSS_FileRead(f);
-    char *geom = RTEST(g) ? RGSS_FileRead(g) : NULL;
-
-    RGSS_Shader *shader = ALLOC(RGSS_Shader);
-    memset(shader, 0, sizeof(RGSS_Shader));
-
-    RGSS_Shader_CreateProgram(vert, frag, geom, shader);
-    xfree(vert);
-    xfree(frag);
-    if (geom != NULL)
-        xfree(geom);
-
-    return Data_Wrap_Struct(klass, NULL, RUBY_DEFAULT_FREE, shader);
-}
-
-static VALUE RGSS_Shader_Initialize(int argc, VALUE *argv, VALUE self)
-{
-    VALUE v, f, g;
-    rb_scan_args(argc, argv, "21", &v, &f, &g);
-
-    RGSS_Shader *shader = DATA_PTR(self);
-    char *vert = StringValueCStr(v);
-    char *frag = StringValueCStr(f);
-    char *geom = RTEST(g) ? StringValueCStr(g) : NULL;
-
-    RGSS_Shader_CreateProgram(vert, frag, geom, shader);
-    return self;
-}
-
-static VALUE RGSS_Shader_Use(VALUE self)
-{
-    RGSS_Shader *shader = DATA_PTR(self);
-    if (shader->id == GL_NONE)
-        rb_raise(rb_eRuntimeError, "disposed shader program");
-    glUseProgram(shader->id);
-    return self;
-}
-
-static VALUE RGSS_Shader_GetID(VALUE self)
-{
-    RGSS_Shader *shader = DATA_PTR(self);
-    return UINT2NUM(shader->id);
-}
-
-static VALUE RGSS_Shader_Locate(VALUE self, VALUE uniform)
-{
-    RGSS_Shader *shader = DATA_PTR(self);
-    if (uniform == Qnil)
-        return INT2NUM(-1);
-    return INT2NUM(glGetUniformLocation(shader->id, StringValueCStr(uniform)));
-}
-
-static VALUE RGSS_Shader_Dispose(VALUE self)
-{
-    RGSS_Shader *shader = DATA_PTR(self);
-    if (shader->id != GL_NONE)
-    {
-        glDeleteProgram(shader->id);
-        shader->id = GL_NONE;
-    }
-    return Qnil;
-}
-
-static VALUE RGSS_Shader_IsDisposed(VALUE self)
-{
-    RGSS_Shader *shader = DATA_PTR(self);
-    return RB_BOOL(shader->id == GL_NONE);
-}
 
 void RGSS_Init_Graphics(VALUE parent)
 {
@@ -469,6 +509,7 @@ void RGSS_Init_Graphics(VALUE parent)
     rb_define_singleton_method0(rb_mGraphics, "projection", RGSS_Graphics_GetProjection, 0);
     rb_define_singleton_method0(rb_mGraphics, "ubo", RGSS_Graphics_GetUniformBlock, 0);
     rb_define_singleton_methodm1(rb_mGraphics, "project", RGSS_Graphics_Project, -1);
+    rb_define_singleton_method0(rb_mGraphics, "batch", RGSS_Graphics_GetBatch, 0);
     // rb_define_singleton_method1(rb_mGraphics, "projection=", RGSS_Graphics_SetProjection, 1);
 
     VALUE singleton = rb_singleton_class(rb_mGraphics);
