@@ -7,6 +7,8 @@
 
 ID RGSS_ID_UPDATE_VERTICES;
 ID RGSS_ID_BATCH;
+ID RGSS_ID_RENDER;
+ID RGSS_ID_SEND;
 
 #define RGSS_SHADER RGSS_GAME.graphics.shader
 
@@ -24,6 +26,16 @@ typedef struct
     VALUE texture;
     RGSS_Rect src_rect;
 } RGSS_Sprite;
+
+typedef struct {
+    RGSS_Renderable base;
+    GLuint texture;
+    GLuint fbo;
+    RGSS_Batch batch;
+    vec4 *ortho;
+    RGSS_Rect rect;
+    RGSS_Color back_color;
+} RGSS_Viewport;
 
 // TODO: Use direct pointer with RUBY_NEVER_FREE instead of new vector?
 
@@ -397,6 +409,10 @@ static VALUE RGSS_Renderable_Initialize(VALUE self, VALUE parent)
 
     obj->parent = parent;
     RGSS_Batch_Add(parent, self);
+
+
+    // TODO Accept kwargs 
+
     return self;
 }
 
@@ -841,18 +857,20 @@ static VALUE RGSS_Sprite_SetTexture(VALUE self, VALUE texture)
 
 static VALUE RGSS_Sprite_Initialize(int argc, VALUE *argv, VALUE self)
 {
+    VALUE viewport, opts;
+    rb_scan_args(argc, argv, "01:", &viewport, &opts);
 
-    // TODO: Delete this
-    VALUE vp, opts;
-    rb_scan_args(argc, argv, "01:", &vp, &opts);
-
-    if (RTEST(vp))
-    {
-        // RGSS_Graphics_GetBatch(rb_mGraphics);
-    }
-
+    rb_call_super(1, &viewport);
     RGSS_Renderable_VertexSetup(0, NULL, self);
-    // TODO
+
+    if (RTEST(opts))
+    {
+        VALUE opt;
+        opt = rb_hash_aref(opts, STR2SYM("texture"));
+        if (RTEST(opt))
+            RGSS_Sprite_SetTexture(self, opt);
+    }
+    return self;
 }
 
 static void RGSS_Sprite_Mark(void *data)
@@ -926,6 +944,218 @@ static VALUE RGSS_Blend_Equal(VALUE self, VALUE other)
         return Qfalse;
     RGSS_Blend *b1 = DATA_PTR(self), *b2 = DATA_PTR(other);
     return RB_BOOL(b1->op == b2->op && b1->src == b2->src && b1->dst == b2->dst);
+}
+
+static void RGSS_Viewport_Mark(void *data)
+{
+    RGSS_Viewport *vp = data;
+
+    VALUE obj;
+    int i;
+
+    vec_foreach(&vp->batch.items, obj, i)
+    {
+        rb_gc_mark(obj);
+    }
+}
+
+static void RGSS_Viewport_Free(void *data)
+{
+    RGSS_Viewport *vp = data;
+    vec_deinit(&vp->batch.items);
+    xfree(data);
+}
+
+static VALUE RGSS_Viewport_Alloc(VALUE klass)
+{
+    RGSS_Viewport *vp = ALLOC(RGSS_Viewport);
+    memset(vp, 0, sizeof(RGSS_Viewport));
+    RGSS_Enity_Init(&vp->base.entity);
+    vec_init(&vp->batch.items);
+    return Data_Wrap_Struct(klass, RGSS_Viewport_Mark, RGSS_Viewport_Free, vp);
+}
+
+static VALUE RGSS_Viewport_Initialize(int argc, VALUE *argv, VALUE self)
+{   
+    VALUE x, y, w, h;
+    rb_scan_args(argc, argv, "04", &x, &y, &w, &h);
+
+    VALUE batch = rb_funcall2(rb_mGraphics, RGSS_ID_BATCH, 0, NULL);
+    rb_call_super(1, &batch);
+    RGSS_Rect rect = {0};
+
+    switch (argc)
+    {
+        case 0:
+        {
+            rect.width = (int) RGSS_GAME.graphics.resolution[0];
+            rect.height = (int) RGSS_GAME.graphics.resolution[1];
+            break;
+        }
+        case 1:
+        {
+            if (rb_obj_is_kind_of(x, rb_cRect) != Qtrue)
+                rb_raise(rb_eTypeError, "%s is not a Rect", CLASS_NAME(x));
+            memcpy(&rect, DATA_PTR(x), sizeof(RGSS_Rect));
+            break;
+        }
+        case 2:
+        {
+            if (rb_obj_is_kind_of(x, rb_cPoint) != Qtrue)
+                rb_raise(rb_eTypeError, "%s is not a Point", CLASS_NAME(x));
+            if (rb_obj_is_kind_of(y, rb_cSize) != Qtrue)
+                rb_raise(rb_eTypeError, "%s is not a Size", CLASS_NAME(y));
+
+            memcpy(&rect.location, DATA_PTR(x), sizeof(RGSS_Point));
+            memcpy(&rect.size, DATA_PTR(y), sizeof(RGSS_Size));
+            break;
+        }
+        case 4:
+        {
+            rect.x = NUM2INT(x);
+            rect.y = NUM2INT(y);
+            rect.width = NUM2INT(w);
+            rect.height = NUM2INT(h);            
+            break;
+        }
+        default: rb_raise(rb_eArgError, "wrong number of arguments (given %d, expected 0, 1, 2, or 4)");
+    }
+
+    if (rect.width < 1)
+        rb_raise(rb_eArgError, "width must be greater than 0 (given %d)", rect.width);
+    if (rect.height < 1)
+        rb_raise(rb_eArgError, "height must be greater than 0 (given %d)", rect.height);
+    
+    RGSS_Viewport *vp = DATA_PTR(self);
+    vp->base.entity.position[0] = rect.x;
+    vp->base.entity.position[1] = rect.y;
+    vp->base.entity.size[0] = rect.width;
+    vp->base.entity.size[1] = rect.height;
+
+    glGenTextures(1, &vp->texture);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, vp->texture);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rect.width, rect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glGenFramebuffers(1, &vp->fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, vp->fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vp->texture, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
+
+    GLfloat vertices[VERTICES_COUNT] = 
+    {
+        0.0f, 1.0f, 0.0f, 1.0f, // Bottom-Left
+        1.0f, 0.0f, 1.0f, 0.0f, // Top-Right
+        0.0f, 0.0f, 0.0f, 0.0f, // Top-Left
+        1.0f, 1.0f, 1.0f, 1.0f, // Bottom-Right
+    };
+
+    VALUE ary = rb_ary_new_capa(VERTICES_COUNT);
+    for (long i = 0; i < VERTICES_COUNT; i++)
+        rb_ary_store(ary, i, DBL2NUM(vertices[i]));
+
+    VALUE args[3] = { ary, Qnil, INT2NUM(GL_STATIC_DRAW) };
+    RGSS_Renderable_VertexSetup(3, args, self);
+
+    vp->ortho = RGSS_MAT4_NEW;
+    glm_ortho(0.0f, (GLfloat) rect.width, 0.0f, (GLfloat) rect.height, -1.0f, 1.0f, vp->ortho);
+    vp->rect = rect;
+    return self;
+}
+
+static VALUE RGSS_Viewport_Render(VALUE self, VALUE alpha)
+{
+    RGSS_Viewport *vp = DATA_PTR(self);
+    if (!vp->base.visible || vp->base.opacity < FLT_EPSILON)
+        return Qnil;
+
+    // Check if viewport has been disposed or not initialized
+    if (vp->fbo == 0 || vp->texture == 0)
+        rb_raise(rb_eRuntimeError, "disposed viewport");
+
+    // Setup off-screen framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, vp->fbo);
+    glClearColor(vp->back_color[0], vp->back_color[1], vp->back_color[2], vp->back_color[3]); 
+    glClear(GL_COLOR_BUFFER_BIT);
+    glViewport(0, 0, vp->rect.width, vp->rect.height);
+    glScissor(0, 0, vp->rect.width, vp->rect.height);
+
+    // Configure the projection matrix to that of the viewport
+    glBindBuffer(GL_UNIFORM_BUFFER, RGSS_GAME.graphics.ubo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, RGSS_MAT4_SIZE, vp->ortho[0]);
+
+    // Render all the children of the sprite onto the bound framebuffer
+    VALUE obj;
+    int i;
+    vec_foreach(&vp->batch.items, obj, i)
+    {
+        rb_funcall2(obj, RGSS_ID_RENDER, 1, &alpha);
+    }
+
+    // Restore rendering to the screen, and reapply color, viewport, projection, etc.
+    RGSS_Graphics_Restore(rb_mGraphics);
+    glBindBuffer(GL_UNIFORM_BUFFER, RGSS_GAME.graphics.ubo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, RGSS_MAT4_SIZE, RGSS_GAME.graphics.projection);
+    glBindBuffer(GL_UNIFORM_BUFFER, GL_NONE);
+
+    // Render the viewport's texture normally
+    rb_call_super(1, &alpha);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, vp->texture);
+    glBindVertexArray(vp->base.vao);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_BYTE, NULL);
+    glBindVertexArray(GL_NONE);
+    return Qnil;
+}
+
+static VALUE RGSS_Viewport_Dispose(VALUE self)
+{
+    rb_call_super(0, NULL);
+    RGSS_Viewport *vp = DATA_PTR(self);
+    if (vp->fbo)
+    {
+        glDeleteFramebuffers(1, &vp->fbo);
+        vp->fbo = GL_NONE;
+    }
+    if (vp->texture)
+    {
+        glDeleteTextures(1, &vp->texture);
+        vp->texture = GL_NONE;
+    }
+    return Qnil;
+}
+
+static VALUE RGSS_Viewport_GetBatch(VALUE self)
+{
+    RGSS_Viewport *vp = DATA_PTR(self);
+    return Data_Wrap_Struct(rb_cBatch, NULL, RUBY_NEVER_FREE, &vp->batch);
+}
+
+static VALUE RGSS_Viewport_GetBackColor(VALUE self)
+{
+    RGSS_Viewport *vp = DATA_PTR(self);
+    float *color = RGSS_VEC4_NEW;
+    memcpy(color, &vp->back_color, sizeof(RGSS_Color));
+    return Data_Wrap_Struct(rb_cColor, NULL, free, color);
+}
+
+static VALUE RGSS_Viewport_SetBackColor(VALUE self, VALUE color)
+{
+    RGSS_Viewport *vp = DATA_PTR(self);
+    if (rb_obj_is_kind_of(color, rb_cColor))
+    {
+        glm_vec4_copy(DATA_PTR(color), vp->back_color);
+    }
+    else
+    {
+        glm_vec4_zero(vp->back_color);
+    }
+    return color;
 }
 
 void RGSS_Init_Entity(VALUE parent)
@@ -1021,13 +1251,24 @@ void RGSS_Init_Entity(VALUE parent)
 
     rb_cSprite = rb_define_class_under(parent, "Sprite", rb_cRenderable);
     rb_define_alloc_func(rb_cSprite, RGSS_Sprite_Alloc);
-    // rb_define_methodm1(rb_cSprite, "initialize", RGSS_Sprite_Initialize, -1); // TODO:
+    rb_define_methodm1(rb_cSprite, "initialize", RGSS_Sprite_Initialize, -1);
     rb_define_method0(rb_cSprite, "src_rect", RGSS_Sprite_GetSrcRect, 0);
     rb_define_method1(rb_cSprite, "src_rect=", RGSS_Sprite_SetSrcRect, 1);
     rb_define_method0(rb_cSprite, "texture", RGSS_Sprite_GetTexture, 0);
     rb_define_method1(rb_cSprite, "texture=", RGSS_Sprite_SetTexture, 1);
     rb_define_method1(rb_cSprite, "render", RGSS_Sprite_Render, 1);
     rb_define_protected_method0(rb_cSprite, "update_vertices", RGSS_Sprite_UpdateVertices, 0);
+
+
+    rb_cViewport = rb_define_class_under(parent, "Viewport", rb_cRenderable);
+    rb_define_alloc_func(rb_cViewport, RGSS_Viewport_Alloc);
+    rb_define_methodm1(rb_cViewport, "initialize", RGSS_Viewport_Initialize, -1);
+    rb_define_method1(rb_cViewport, "render", RGSS_Viewport_Render, 1);
+    rb_define_method0(rb_cViewport, "batch", RGSS_Viewport_GetBatch, 0);
+    rb_define_method0(rb_cViewport, "back_color", RGSS_Viewport_GetBackColor, 0);
+    rb_define_method1(rb_cViewport, "back_color=", RGSS_Viewport_SetBackColor, 1);
+
+    // TODO: Origin for viewport, offset children from it each draw/update?
 
     RGSS_Blend *b = ALLOC(RGSS_Blend);
     b->op = GL_FUNC_ADD;
@@ -1038,4 +1279,8 @@ void RGSS_Init_Entity(VALUE parent)
 
     RGSS_ID_UPDATE_VERTICES = rb_intern("update_vertices");
     RGSS_ID_BATCH = rb_intern("batch");
+    RGSS_ID_RENDER = rb_intern("render");
+    RGSS_ID_SEND = rb_intern("send");
+
+    rb_undef(rb_cViewport, rb_intern("size="));
 }

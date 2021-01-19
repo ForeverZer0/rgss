@@ -47,7 +47,7 @@ module RGSS
       $sprite.z -= 1 if Input.press?(:LOWER)
 
       $sprite.update(delta)
-      # $v.update(delta)
+      $v.update(delta)
       # $fog.update(delta)
     
       if Input.trigger?(:FULLSCREEN)
@@ -80,9 +80,9 @@ module RGSS
   Input.bind(:QUIT, Input::KEY_ESCAPE)
 
   Input.cursor_image('/home/eric/Desktop/cursor.png')
-  # $v = Viewport.new(1, 1, 256, 256)
-  # $v.back_color = Color::BLACK
-  # $v.position = vec2(400, 100)
+  $v = Viewport.new(1, 1, 256, 256)
+  $v.back_color = Color::BLACK
+  $v.position = vec2(400, 100)
 
   # # GL.glPixelStorei(GL::GL_UNPACK_ALIGNMENT, 4)
   # fog_tex = Texture.load('/storage/images/RTP/XP/Graphics/Fogs/001-Fog01.png')
@@ -119,7 +119,7 @@ EOS
   # $sprite.color = Color::WHITE
 
   args = Font.test_texture(markup, 'MinecraftCHMC 18', Size.empty)
-  $sprite = Sprite.new()
+  $sprite = Sprite.new($v)
   $sprite.texture = Texture.wrap(*args)
   # $sprite.color = Color::WHITE
 
