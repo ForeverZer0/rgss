@@ -31,10 +31,14 @@ extern VALUE rb_mGraphics;
 extern VALUE rb_cBatch;
 extern VALUE rb_cEntity;
 extern VALUE rb_cRenderable;
+extern VALUE rb_cViewport;
+extern VALUE rb_cSprite;
+extern VALUE rb_cPlane;
 extern VALUE rb_cTexture;
 
 extern VALUE rb_cFont;
 
+extern VALUE rb_cTable;
 extern VALUE rb_cColor;
 extern VALUE rb_cTone;
 extern VALUE rb_cPoint;
@@ -53,6 +57,7 @@ void RGSS_Init_Game(VALUE parent);
 void RGSS_Init_Graphics(VALUE parent);
 void RGSS_Init_Input(VALUE parent);
 
+void RGSS_Init_Table(VALUE parent);
 void RGSS_Init_ColorAndTone(VALUE parent);
 void RGSS_Init_PointAndSize(VALUE parent);
 void RGSS_Init_Rect(VALUE parent);

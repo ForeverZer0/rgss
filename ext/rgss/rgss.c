@@ -29,8 +29,10 @@ void Init_rgss(void) {
     RGSS_Init_Graphics(rb_mRGSS);
     RGSS_Init_Input(rb_mRGSS);
 
+    
     RGSS_Init_Batch(rb_mGraphics);
     RGSS_Init_Image(rb_mRGSS);
+    RGSS_Init_Table(rb_mRGSS);
     RGSS_Init_ColorAndTone(rb_mRGSS);
     RGSS_Init_PointAndSize(rb_mRGSS);
     RGSS_Init_Rect(rb_mRGSS);

@@ -109,7 +109,15 @@ EOS
   $sprite.flip = 2
   $sprite.texture = Texture.wrap(*args)
  
+  table = Table.new(2, 3, 4)
+  table[1, 2, 2] = 16
+  str = table._dump
 
+  table = Table._load(str)
+
+  table.each do |x, y, z, v|
+    puts "X: #{x}, Y: #{y}, Z: #{z} = #{v}"
+  end
 
 
   Game.speed = 1.0

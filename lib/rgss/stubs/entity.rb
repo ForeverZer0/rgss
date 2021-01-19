@@ -11,52 +11,122 @@ module RGSS
 
     ##
     # @param angle [Float]
-    # @param pivot [Vec2?]
+    # @param pivot [Vec2,Point,NilClass]
     # @return [void]
     def rotate(angle, pivot = nil)
     end
 
     ##
     # @return [Mat4]
-    attr_accessor :model
+    def model
+    end
+
+    ##
+    # @param value [Mat4]
+    # @return [Mat4]
+    def model=(value)
+    end
 
     ##
     # @return [Vec2]
-    attr_accessor :position
+    def position
+    end
+
+    ##
+    # @param [Vec2,Point]
+    # @return [Vec2]
+    def position=(value)
+    end
 
     ##
     # @return [Vec2]
-    attr_accessor :velocity
+    def velocity
+    end
+
+    ##
+    # @param [Vec2,Point]
+    # @return [Vec2]
+    def velocity=(value)
+    end
 
     ##
     # @return [Vec2]
-    attr_accessor :scale
+    def scale
+    end
+
+    ##
+    # @param [Vec2,Point]
+    # @return [Vec2]
+    def scale=(value)
+    end
 
     ##
     # @return [Vec2]
-    attr_accessor :pivot
+    def pivot
+    end
+
+    ##
+    # @param [Vec2,Point]
+    # @return [Vec2]
+    def pivot=(value)
+    end
 
     ##
     # @return [Float]
-    attr_accessor :angle
+    def angle
+    end
+
+    ##
+    # @param [Numeric]
+    # @return [Numeric]
+    def angle=(value)
+    end
 
     ##
     # @return [Integer]
-    attr_accessor :x
+    def x
+    end
+
+    ##
+    # @param [Numeric]
+    # @return [Numeric]
+    def x=(value)
+    end
 
     ##
     # @return [Integer]
-    attr_accessor :y
+    def y
+    end
+
+    ##
+    # @param [Numeric]
+    # @return [Numeric]
+    def y=(value)
+    end
 
     ##
     # @return [Integer]
-    attr_accessor :z
+    def z
+    end
+
+    ##
+    # @param [Numeric]
+    # @return [Numeric]
+    def z=(value)
+    end
 
     alias_method :depth, :z
 
     ##
+    # @return [Point,Vec2]
+    def location
+    end
+
+    ##
+    # @param [Point]
     # @return [Point]
-    attr_accessor :location
+    def x=(value)
+    end
 
     ##
     # @return [Size]
@@ -82,19 +152,19 @@ module RGSS
 
     ##
     # @param value [Size]
-    # @return [Size]
+    # @return [Size,Vec2]
     def size=(value)
     end
 
     ##
-    # @param value [Integer]
-    # @return [Integer]
+    # @param value [Numeric]
+    # @return [Numeric]
     def width=(value)
     end
 
     ##
-    # @param value [Integer]
-    # @return [Integer]
+    # @param value [Numeric]
+    # @return [Numeric]
     def height=(value)
     end    
   end

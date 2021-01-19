@@ -383,6 +383,9 @@ static VALUE RGSS_Entity_SetWidth(VALUE self, VALUE value)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     entity->size[0] = NUM2FLT(value);
+    
+    if (rb_respond_to(self, RGSS_ID_UPDATE_VERTICES))
+        rb_funcall2(self, RGSS_ID_UPDATE_VERTICES, 0, NULL);
     return value;
 }
 
@@ -390,6 +393,9 @@ static VALUE RGSS_Entity_SetHeight(VALUE self, VALUE value)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     entity->size[1] = NUM2FLT(value);
+    
+    if (rb_respond_to(self, RGSS_ID_UPDATE_VERTICES))
+        rb_funcall2(self, RGSS_ID_UPDATE_VERTICES, 0, NULL);
     return value;
 }
 
@@ -1398,6 +1404,26 @@ static VALUE RGSS_Plane_SetSize(VALUE self, VALUE size)
     return size;
 }
 
+static VALUE RGSS_Plane_SetWidth(VALUE self, VALUE value)
+{
+    int i = NUM2INT(value);
+    if (i < 1)
+        rb_raise(rb_eArgError, "width must be greater than 0 (given %d)", i);
+
+    rb_call_super(1, &value);
+    return value;
+}
+
+static VALUE RGSS_Plane_SetHeight(VALUE self, VALUE value)
+{
+    int i = NUM2INT(value);
+    if (i < 1)
+        rb_raise(rb_eArgError, "height must be greater than 0 (given %d)", i);
+        
+    rb_call_super(1, &value);
+    return value;
+}
+
 static VALUE RGSS_Plane_Update(VALUE self, VALUE delta)
 {
     RGSS_Plane *plane = DATA_PTR(self);
@@ -1553,6 +1579,8 @@ void RGSS_Init_Entity(VALUE parent)
     rb_define_method0(rb_cPlane, "origin",  RGSS_Plane_GetOrigin, 0);
     rb_define_method1(rb_cPlane, "origin=", RGSS_Plane_SetOrigin, 1);
     rb_define_method1(rb_cPlane, "size=", RGSS_Plane_SetSize, 1);
+    rb_define_method1(rb_cPlane, "width=", RGSS_Plane_SetWidth, 1);
+    rb_define_method1(rb_cPlane, "height=", RGSS_Plane_SetHeight, 1);
     rb_define_method1(rb_cPlane, "update", RGSS_Plane_Update, 1);
     rb_define_method0(rb_cPlane, "texture",  RGSS_Plane_GetTexture, 0);
     rb_define_method1(rb_cPlane, "texture=", RGSS_Plane_SetTexture, 1);
