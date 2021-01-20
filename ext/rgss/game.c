@@ -140,7 +140,7 @@ static VALUE RGSS_Game_Create(int argc, VALUE *argv, VALUE game)
     int h = NUM2INT(height);
     RGSS_SizeNotEmpty(w, h);
 
-    int resizable, fullscreen, vsync, topmost, decorated, visible, locked, debug;
+    int resizable, fullscreen, vsync, topmost, decorated, visible, locked;
     RGSS_ParseOpt(opts, "resizable", GLFW_FALSE, &resizable);
     RGSS_ParseOpt(opts, "fullscren", GLFW_FALSE, &fullscreen);
     RGSS_ParseOpt(opts, "vsync", GLFW_TRUE, &vsync);
@@ -148,7 +148,6 @@ static VALUE RGSS_Game_Create(int argc, VALUE *argv, VALUE game)
     RGSS_ParseOpt(opts, "decorated", GLFW_TRUE, &decorated);
     RGSS_ParseOpt(opts, "visible", GLFW_TRUE, &visible);
     RGSS_ParseOpt(opts, "locked", GLFW_FALSE, &locked);
-    RGSS_ParseOpt(opts, "debug", GLFW_FALSE, &RGSS_GAME.debug);
     RGSS_ParseOpt(opts, "auto_ortho", GLFW_TRUE, &RGSS_GAME.auto_ortho);
 
     glfwDefaultWindowHints();
@@ -163,11 +162,10 @@ static VALUE RGSS_Game_Create(int argc, VALUE *argv, VALUE game)
     glfwWindowHint(GLFW_RESIZABLE, resizable);
     glfwWindowHint(GLFW_FLOATING, topmost);
     glfwWindowHint(GLFW_VISIBLE, visible);
+
+    RGSS_GAME.debug = RTEST(rb_gv_set("$RGSS_DEBUG", Qtrue));
     if (RGSS_GAME.debug)
-    {
-        rb_gv_set("$RGSS_DEBUG", Qtrue);
-        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, debug);
-    }
+        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 
     const GLFWvidmode *mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
     glfwWindowHint(GLFW_RED_BITS, mode->redBits);

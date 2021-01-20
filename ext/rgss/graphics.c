@@ -1,36 +1,10 @@
-#include "game.h"
 #include "graphics.h"
+#include "game.h"
 
 VALUE rb_mGraphics;
 VALUE rb_cShader;
 
-#define GL_DEBUG_OUTPUT_SYNCHRONOUS 0x8242
-
-#define GL_DEBUG_SOURCE_API             0x8246
-#define GL_DEBUG_SOURCE_WINDOW_SYSTEM   0x8247
-#define GL_DEBUG_SOURCE_SHADER_COMPILER 0x8248
-#define GL_DEBUG_SOURCE_THIRD_PARTY     0x8249
-#define GL_DEBUG_SOURCE_APPLICATION     0x824A
-#define GL_DEBUG_SOURCE_OTHER           0x824B
-
-#define GL_DEBUG_TYPE_ERROR               0x824C
-#define GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR 0x824D
-#define GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR  0x824E
-#define GL_DEBUG_TYPE_PORTABILITY         0x824F
-#define GL_DEBUG_TYPE_PERFORMANCE         0x8250
-#define GL_DEBUG_TYPE_MARKER              0x8268
-#define GL_DEBUG_TYPE_PUSH_GROUP          0x8269
-#define GL_DEBUG_TYPE_POP_GROUP           0x826A
-#define GL_DEBUG_TYPE_OTHER               0x8251
-
-#define GL_DEBUG_SEVERITY_LOW          0x9148
-#define GL_DEBUG_SEVERITY_MEDIUM       0x9147
-#define GL_DEBUG_SEVERITY_HIGH         0x9146
-#define GL_DEBUG_SEVERITY_NOTIFICATION 0x826B
-
-typedef void (*GLDEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *msg,
-                            const void *data);
-typedef void(APIENTRYP PFGLDEBUGMESSAGECALLBACK)(GLDEBUGPROC callback, const void *userParam);
+#define RGSS_GRAPHICS RGSS_GAME.graphics
 
 void RGSS_Graphics_GLCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *msg,
                               const void *data)
@@ -38,7 +12,32 @@ void RGSS_Graphics_GLCallback(GLenum source, GLenum type, GLuint id, GLenum seve
     if (id == 131169 || id == 131185 || id == 131218 || id == 131204)
         return;
 
-    printf("%s\n", msg);
+    RGSS_LOG_LEVEL level;
+    char *kind;
+
+    switch (severity)
+    {
+        case GL_DEBUG_SEVERITY_LOW: level = RGSS_LOG_WARN; break;
+        case GL_DEBUG_SEVERITY_MEDIUM: level = RGSS_LOG_ERROR; break;
+        case GL_DEBUG_SEVERITY_HIGH: level = RGSS_LOG_FATAL; break;
+        case GL_DEBUG_SEVERITY_NOTIFICATION: level = RGSS_LOG_DEBUG; break;
+        default: level = RGSS_LOG_UNKNOWN; break;
+    }
+
+    switch (type)
+    {
+        case GL_DEBUG_TYPE_ERROR:               kind = "error"; break;
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: kind = "deprecated behaviour"; break;
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  kind = "undefined behaviour"; break; 
+        case GL_DEBUG_TYPE_PORTABILITY:         kind = "portability"; break;
+        case GL_DEBUG_TYPE_PERFORMANCE:         kind = "performance"; break;
+        case GL_DEBUG_TYPE_MARKER:              kind = "marker"; break;
+        case GL_DEBUG_TYPE_PUSH_GROUP:          kind = "push group"; break;
+        case GL_DEBUG_TYPE_POP_GROUP:           kind = "pop group"; break;
+        case GL_DEBUG_TYPE_OTHER:               kind = "other"; break;
+    }
+
+    RGSS_Log(level, "%s (%s)", msg, kind);
 }
 
 #define RGSS_VIEWPORT(rect)                                                                                            \
@@ -218,7 +217,7 @@ static VALUE RGSS_Shader_IsDisposed(VALUE self)
 
 static inline void RGSS_Graphics_SetProjection(mat4 ortho)
 {
-    glBindBuffer(GL_UNIFORM_BUFFER, RGSS_GAME.graphics.ubo);
+    glBindBuffer(GL_UNIFORM_BUFFER, RGSS_GRAPHICS.ubo);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, RGSS_MAT4_SIZE, ortho);
     glBindBuffer(GL_UNIFORM_BUFFER, GL_NONE);
 }
@@ -228,18 +227,18 @@ static void RGSS_Graphics_Reshape(int width, int height)
     if (RGSS_GAME.auto_ortho)
     {
         // Calculate ratios between window and internal resolution
-        RGSS_GAME.graphics.ratio[0] = (float)width / RGSS_GAME.graphics.resolution[0];
-        RGSS_GAME.graphics.ratio[1] = (float)height / RGSS_GAME.graphics.resolution[1];
-        float ratio = RGSS_MIN(RGSS_GAME.graphics.ratio[0], RGSS_GAME.graphics.ratio[1]);
+        RGSS_GRAPHICS.ratio[0] = (float)width / RGSS_GRAPHICS.resolution[0];
+        RGSS_GRAPHICS.ratio[1] = (float)height / RGSS_GRAPHICS.resolution[1];
+        float ratio = RGSS_MIN(RGSS_GRAPHICS.ratio[0], RGSS_GRAPHICS.ratio[1]);
 
         // Calculate letterbox/pillar rendering coordinates as required
         int x, y, w, h;
-        w = (int)roundf(RGSS_GAME.graphics.resolution[0] * ratio);
-        h = (int)roundf(RGSS_GAME.graphics.resolution[1] * ratio);
-        x = (int)roundf(((float)width - RGSS_GAME.graphics.resolution[0] * ratio) * 0.5f);
-        y = (int)roundf(((float)height - RGSS_GAME.graphics.resolution[1] * ratio) * 0.5f);
+        w = (int)roundf(RGSS_GRAPHICS.resolution[0] * ratio);
+        h = (int)roundf(RGSS_GRAPHICS.resolution[1] * ratio);
+        x = (int)roundf(((float)width - RGSS_GRAPHICS.resolution[0] * ratio) * 0.5f);
+        y = (int)roundf(((float)height - RGSS_GRAPHICS.resolution[1] * ratio) * 0.5f);
 
-        RGSS_GAME.graphics.viewport = (RGSS_Rect){x, y, w, h};
+        RGSS_GRAPHICS.viewport = (RGSS_Rect){x, y, w, h};
         glViewport(x, y, w, h);
 
         // Ensure the clipping area is also cleared
@@ -248,12 +247,12 @@ static void RGSS_Graphics_Reshape(int width, int height)
         glClear(GL_COLOR_BUFFER_BIT);
         glEnable(GL_SCISSOR_TEST);
         glScissor(x, y, w, h);
-        RGSS_CLEAR_COLOR(RGSS_GAME.graphics.color);
+        RGSS_CLEAR_COLOR(RGSS_GRAPHICS.color);
     }
     else
     {
-        glm_vec2_one(RGSS_GAME.graphics.ratio);
-        RGSS_GAME.graphics.viewport = (RGSS_Rect){0, 0, width, height};
+        glm_vec2_one(RGSS_GRAPHICS.ratio);
+        RGSS_GRAPHICS.viewport = (RGSS_Rect){0, 0, width, height};
         glScissor(0, 0, width, height);
         glViewport(0, 0, width, height);
     }
@@ -268,7 +267,7 @@ static VALUE RGSS_Graphics_GetBackColor(VALUE graphics)
 {
     RGSS_ASSERT_GAME;
     float *color = RGSS_VEC4_NEW;
-    memcpy(color, RGSS_GAME.graphics.color, RGSS_VEC4_SIZE);
+    memcpy(color, RGSS_GRAPHICS.color, RGSS_VEC4_SIZE);
     return Data_Wrap_Struct(rb_cColor, NULL, free, color);
 }
 
@@ -278,13 +277,13 @@ static VALUE RGSS_Graphics_SetBackColor(VALUE graphics, VALUE color)
     if (RTEST(color))
     {
         float *vec = DATA_PTR(color);
-        memcpy(RGSS_GAME.graphics.color, vec, RGSS_VEC4_SIZE);
+        memcpy(RGSS_GRAPHICS.color, vec, RGSS_VEC4_SIZE);
     }
     else
     {
-        memset(RGSS_GAME.graphics.color, 0, RGSS_VEC4_SIZE);
+        memset(RGSS_GRAPHICS.color, 0, RGSS_VEC4_SIZE);
     }
-    RGSS_CLEAR_COLOR(RGSS_GAME.graphics.color);
+    RGSS_CLEAR_COLOR(RGSS_GRAPHICS.color);
     return color;
 }
 
@@ -299,22 +298,27 @@ static VALUE RGSS_Graphics_Capture(VALUE graphics)
 {
     RGSS_ASSERT_GAME;
 
-    // glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
-    // TODO: Set projection/viewport to graphics size, render, read framebuffer, return image
+    // Copy current projection into a temp variable
+    mat4 temp;
+    memcpy(temp, RGSS_GRAPHICS.projection, RGSS_MAT4_SIZE);
 
-    RGSS_Rect rect = { 0, 0, (int) RGSS_GAME.graphics.resolution[0], (int) RGSS_GAME.graphics.resolution[1] };
+    // Change the projection to match the resolution
+    RGSS_Rect rect = {0, 0, (int)RGSS_GRAPHICS.resolution[0], (int)RGSS_GRAPHICS.resolution[1]};
     RGSS_VIEWPORT(rect);
+    glm_ortho(0.0f, rect.width, rect.height, 0.0, -1.0f, 1.0f, RGSS_GRAPHICS.projection);
+    RGSS_Graphics_SetProjection(RGSS_GRAPHICS.projection);
 
-    mat4 ortho;
-    glm_ortho(0.0f, rect.width, rect.height, 0.0, -1.0f, 1.0f, ortho);
-    // TODO: Bind UBO and set projection
-
-
+    // Render the scene and copy the framebuffer pixels
     unsigned char *pixels = xmalloc(sizeof(int) * rect.width * rect.height);
     rb_funcall(graphics, RGSS_ID_RENDER, 1, DBL2NUM(0.0));
     glReadPixels(0, 0, rect.width, rect.height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-    RGSS_VIEWPORT(RGSS_GAME.graphics.viewport);
+    RGSS_VIEWPORT(RGSS_GRAPHICS.viewport);
 
+    // Restore the projection matrix
+    memcpy(RGSS_GRAPHICS.projection, temp, RGSS_MAT4_SIZE);
+    RGSS_Graphics_SetProjection(RGSS_GRAPHICS.projection);
+
+    // Return result as an image
     return RGSS_Image_New(rect.width, rect.height, pixels);
 }
 
@@ -323,7 +327,7 @@ static VALUE RGSS_Graphics_GetResolution(VALUE graphics)
     if (RGSS_GAME.window == NULL)
         return RGSS_Size_New(0, 0);
 
-    return RGSS_Size_New((int)RGSS_GAME.graphics.resolution[0], (int)RGSS_GAME.graphics.resolution[1]);
+    return RGSS_Size_New((int)RGSS_GRAPHICS.resolution[0], (int)RGSS_GRAPHICS.resolution[1]);
 }
 
 static VALUE RGSS_Graphics_SetResolution(VALUE graphics, VALUE size)
@@ -332,14 +336,15 @@ static VALUE RGSS_Graphics_SetResolution(VALUE graphics, VALUE size)
     RGSS_Size *ivec = DATA_PTR(size);
     RGSS_SizeNotEmpty(ivec->width, ivec->height);
 
-    RGSS_GAME.graphics.resolution[0] = (float)ivec->width;
-    RGSS_GAME.graphics.resolution[1] = (float)ivec->height;
-    glm_ortho(0.0f, (float)ivec->width, (float)ivec->height, 0.0f, -1.0f, 1.0f, RGSS_GAME.graphics.projection);
+    RGSS_GRAPHICS.resolution[0] = (float)ivec->width;
+    RGSS_GRAPHICS.resolution[1] = (float)ivec->height;
+    glm_ortho(0.0f, (float)ivec->width, (float)ivec->height, 0.0f, -1.0f, 1.0f, RGSS_GRAPHICS.projection);
 
     GLvoid *p = glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
-    memcpy(p, RGSS_GAME.graphics.projection, RGSS_MAT4_SIZE);
+    memcpy(p, RGSS_GRAPHICS.projection, RGSS_MAT4_SIZE);
     glUnmapBuffer(GL_UNIFORM_BUFFER);
-
+    RGSS_LogInfo("Internal resolution set to %dx%d.", ivec[0], ivec[1]);
+    
     int w, h;
     glfwGetFramebufferSize(RGSS_GAME.window, &w, &h);
     RGSS_Graphics_Reshape(w, h);
@@ -357,27 +362,29 @@ VALUE RGSS_Graphics_Restore(VALUE graphics)
         return Qnil;
     // TODO: Restore projection?
     glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
-    RGSS_VIEWPORT(RGSS_GAME.graphics.viewport);
-    RGSS_CLEAR_COLOR(RGSS_GAME.graphics.color);
+    RGSS_VIEWPORT(RGSS_GRAPHICS.viewport);
+    RGSS_CLEAR_COLOR(RGSS_GRAPHICS.color);
     return Qnil;
 }
 
 void RGSS_Graphics_Init(GLFWwindow *window, int width, int height, int vsync)
 {
     glfwSwapInterval(vsync);
-    RGSS_GAME.graphics.projection = RGSS_MAT4_NEW;
-    RGSS_GAME.graphics.resolution[0] = (float)width;
-    RGSS_GAME.graphics.resolution[1] = (float)height;
+    RGSS_LogInfo(vsync ? "Enabled vertical synchronization" : "Frame limiting disabled, let 'er rip");
+    RGSS_GRAPHICS.projection = RGSS_MAT4_NEW;
+    RGSS_GRAPHICS.resolution[0] = (float)width;
+    RGSS_GRAPHICS.resolution[1] = (float)height;
+    RGSS_LogInfo("Internal resolution initialized to %dx%d", width, height);
 
-    glm_vec2_one(RGSS_GAME.graphics.ratio);
-    RGSS_GAME.graphics.viewport = (RGSS_Rect){0, 0, width, height};
-    glm_ortho(0.0f, RGSS_GAME.graphics.resolution[0], RGSS_GAME.graphics.resolution[1], 0.0f, -1.0f, 1.0f,
-              RGSS_GAME.graphics.projection);
+    glm_vec2_one(RGSS_GRAPHICS.ratio);
+    RGSS_GRAPHICS.viewport = (RGSS_Rect){0, 0, width, height};
+    glm_ortho(0.0f, RGSS_GRAPHICS.resolution[0], RGSS_GRAPHICS.resolution[1], 0.0f, -1.0f, 1.0f,
+              RGSS_GRAPHICS.projection);
 
-    glGenBuffers(1, &RGSS_GAME.graphics.ubo);
-    glBindBuffer(GL_UNIFORM_BUFFER, RGSS_GAME.graphics.ubo);
-    glBufferData(GL_UNIFORM_BUFFER, RGSS_MAT4_SIZE, RGSS_GAME.graphics.projection, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, RGSS_GAME.graphics.ubo);
+    glGenBuffers(1, &RGSS_GRAPHICS.ubo);
+    glBindBuffer(GL_UNIFORM_BUFFER, RGSS_GRAPHICS.ubo);
+    glBufferData(GL_UNIFORM_BUFFER, RGSS_MAT4_SIZE, RGSS_GRAPHICS.projection, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, RGSS_GRAPHICS.ubo);
     glBindBuffer(GL_UNIFORM_BUFFER, GL_NONE);
 
     glfwSetFramebufferSizeCallback(window, RGSS_Graphics_ResizeCallback);
@@ -386,56 +393,52 @@ void RGSS_Graphics_Init(GLFWwindow *window, int width, int height, int vsync)
     glEnable(GL_SCISSOR_TEST);
     glEnable(GL_BLEND);
 
-    if (RGSS_GAME.debug)
+    if (GLAD_GL_KHR_debug)
     {
-        void *address;
-        address = glfwGetProcAddress("glDebugMessageCallback");
-        if (address)
-        {
-            PFGLDEBUGMESSAGECALLBACK proc = (PFGLDEBUGMESSAGECALLBACK)address;
-            proc(RGSS_Graphics_GLCallback, NULL);
-            glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        }
+        RGSS_LogDebug("Enabled synchronous OpenGL debugging");
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallback(RGSS_Graphics_GLCallback, NULL);
     }
 
-    vec_init(&RGSS_GAME.graphics.batch.items);
+    vec_init(&RGSS_GRAPHICS.batch.items);
 
     GLuint id = RGSS_CreateProgramFromSource(SPRITE_VERT_SRC, SPRITE_FRAG_SRC, NULL);
-    RGSS_GAME.graphics.shader.id = id;
-    RGSS_GAME.graphics.shader.model = glGetUniformLocation(id, "model");
-    RGSS_GAME.graphics.shader.color = glGetUniformLocation(id, "color");
-    RGSS_GAME.graphics.shader.tone = glGetUniformLocation(id, "tone");
-    RGSS_GAME.graphics.shader.flash = glGetUniformLocation(id, "flash");
-    RGSS_GAME.graphics.shader.hue = glGetUniformLocation(id, "hue");
-    RGSS_GAME.graphics.shader.opacity = glGetUniformLocation(id, "opacity");
+    RGSS_GRAPHICS.shader.id = id;
+    RGSS_GRAPHICS.shader.model = glGetUniformLocation(id, "model");
+    RGSS_GRAPHICS.shader.color = glGetUniformLocation(id, "color");
+    RGSS_GRAPHICS.shader.tone = glGetUniformLocation(id, "tone");
+    RGSS_GRAPHICS.shader.flash = glGetUniformLocation(id, "flash");
+    RGSS_GRAPHICS.shader.hue = glGetUniformLocation(id, "hue");
+    RGSS_GRAPHICS.shader.opacity = glGetUniformLocation(id, "opacity");
+    RGSS_LogDebug("Successfully compiled and linked sprite shader");
 }
 
 void RGSS_Graphics_Deinit(GLFWwindow *window)
 {
     glfwSetFramebufferSizeCallback(window, NULL);
 
-    if (RGSS_GAME.graphics.projection)
-        free(RGSS_GAME.graphics.projection);
-    glDeleteBuffers(1, &RGSS_GAME.graphics.ubo);
+    if (RGSS_GRAPHICS.projection)
+        free(RGSS_GRAPHICS.projection);
+    glDeleteBuffers(1, &RGSS_GRAPHICS.ubo);
 
     // TODO: Iterate and destroy children
-    vec_deinit(&RGSS_GAME.graphics.batch.items);
+    vec_deinit(&RGSS_GRAPHICS.batch.items);
 }
 
 void RGSS_Graphics_Render(double alpha)
 {
     glClear(GL_COLOR_BUFFER_BIT);
 
-    if (RGSS_GAME.graphics.batch.invalid)
+    if (RGSS_GRAPHICS.batch.invalid)
     {
-        vec_sort(&RGSS_GAME.graphics.batch.items, RGSS_Batch_Sort);
-        RGSS_GAME.graphics.batch.invalid = false;
+        vec_sort(&RGSS_GRAPHICS.batch.items, RGSS_Batch_Sort);
+        RGSS_GRAPHICS.batch.invalid = false;
     }
 
     VALUE n = DBL2NUM(alpha);
     VALUE obj;
     int i;
-    vec_foreach(&RGSS_GAME.graphics.batch.items, obj, i)
+    vec_foreach(&RGSS_GRAPHICS.batch.items, obj, i)
     {
         rb_funcall2(obj, RGSS_ID_RENDER, 1, &n);
     }
@@ -453,7 +456,7 @@ static VALUE RGSS_Graphics_GetFrameCount(VALUE graphics)
 static VALUE RGSS_Graphics_GetProjection(VALUE graphics)
 {
     RGSS_ASSERT_GAME;
-    return Data_Wrap_Struct(rb_cMat4, NULL, RUBY_NEVER_FREE, RGSS_GAME.graphics.projection);
+    return Data_Wrap_Struct(rb_cMat4, NULL, RUBY_NEVER_FREE, RGSS_GRAPHICS.projection);
 }
 
 static VALUE RGSS_Graphics_Project(int argc, VALUE *argv, VALUE graphics)
@@ -469,7 +472,7 @@ static VALUE RGSS_Graphics_Project(int argc, VALUE *argv, VALUE graphics)
             glm_mat4_identity(identity);
             RGSS_Graphics_SetProjection(identity);
         }
-        else 
+        else
         {
             RGSS_Graphics_SetProjection(DATA_PTR(x));
         }
@@ -487,11 +490,11 @@ static VALUE RGSS_Graphics_Project(int argc, VALUE *argv, VALUE graphics)
     {
         rb_raise(rb_eArgError, "wrong number of arguments (given %d, expected 1 or 4)", argc);
     }
-    
+
     if (rb_block_given_p())
     {
         rb_yield(Qundef);
-        RGSS_Graphics_SetProjection(RGSS_GAME.graphics.projection);
+        RGSS_Graphics_SetProjection(RGSS_GRAPHICS.projection);
     }
 
     return Qnil;
@@ -500,13 +503,13 @@ static VALUE RGSS_Graphics_Project(int argc, VALUE *argv, VALUE graphics)
 static VALUE RGSS_Graphics_GetUniformBlock(VALUE graphics)
 {
     RGSS_ASSERT_GAME;
-    return UINT2NUM(RGSS_GAME.graphics.ubo);
+    return UINT2NUM(RGSS_GRAPHICS.ubo);
 }
 
 static VALUE RGSS_Graphics_GetBatch(VALUE graphics)
 {
     RGSS_ASSERT_GAME;
-    return Data_Wrap_Struct(rb_cBatch, NULL, RUBY_NEVER_FREE, &RGSS_GAME.graphics.batch);
+    return Data_Wrap_Struct(rb_cBatch, NULL, RUBY_NEVER_FREE, &RGSS_GRAPHICS.batch);
 }
 
 void RGSS_Init_Graphics(VALUE parent)

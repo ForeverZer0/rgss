@@ -10,14 +10,14 @@ module RGSS
 
     time = datetime.strftime('%H:%M:%S')
     prefix = case severity
-    when 'DEBUG' then "\33[1;35mDEBUG\33[0m"
-    when 'INFO' then "\33[1;32mINFO\33[0m"
-    when 'WARN' then "\33[1;33mWARN\33[0m"
-    when 'ERROR' then "\33[1;31mERROR\33[0m"
-    when 'FATAL' then "\33[1;31mFATAL\33[0m"
+    when 'DEBUG' then "[\33[1;35mDEBUG\33[0m]"
+    when 'INFO' then "[\33[1;32mINFO\33[0m] "
+    when 'WARN' then "[\33[1;33mWARN\33[0m] "
+    when 'ERROR' then "[\33[1;31mERROR\33[0m]"
+    when 'FATAL' then "[\33[1;31mFATAL\33[0m]"
     else "LOG"
     end
-    "#{time} [#{prefix}] #{msg}\n"
+    "#{time} #{prefix} #{msg}\n"
   end
 end
 
@@ -67,8 +67,8 @@ module RGSS
   end
 
 
-
-  Game.create(1024, 768, "RGSS", resizable: true, vsync: true)
+  $RGSS_DEBUG = true
+  Game.create(1024, 768, "RGSS", resizable: true, vsync: true, debug: true)
   Graphics.back_color = Color::DARK_SLATE_GRAY
 
 

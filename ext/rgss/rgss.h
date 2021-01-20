@@ -352,4 +352,54 @@ int RGSS_Image_SaveJPG(const char *filename, int width, int height, unsigned cha
  */
 void RGSS_Image_Load(const char *path, int *width, int *height, unsigned char **pixels);
 
+/**
+ * @brief Strongly-typed names for logger severity levels.
+ */
+typedef enum
+{
+    RGSS_LOG_DEBUG,  /** Low-level information for developers. */
+    RGSS_LOG_INFO,   /** Generic (useful) information about system operation. */
+    RGSS_LOG_WARN,   /** A warning. */
+    RGSS_LOG_ERROR,  /** A handleable error condition. */
+    RGSS_LOG_FATAL,  /** An unhandleable error that results in a program crash. */
+    RGSS_LOG_UNKNOWN /** An unknown message that should always be logged. */
+} RGSS_LOG_LEVEL;
+
+/**
+ * @brief Adds a log entry.
+ * @param[in] level The severity level of the message.
+ * @param[in] format A format string for the log message.
+ */
+void RGSS_Log(RGSS_LOG_LEVEL level, const char *format, ...);
+
+/**
+ * @brief Logs a fatal error message.
+ * @param[in] format A format string for the log message.
+ */
+#define RGSS_LogFatal(format, ...) RGSS_Log(RGSS_LOG_FATAL, format, ##__VA_ARGS__)
+
+/**
+ * @brief Logs an error message.
+ * @param[in] format A format string for the log message.
+ */
+#define RGSS_LogError(format, ...) RGSS_Log(RGSS_LOG_ERROR, format, ##__VA_ARGS__)
+
+/**
+ * @brief Logs a warning message.
+ * @param[in] format A format string for the log message.
+ */
+#define RGSS_LogWarn(format, ...)  RGSS_Log(RGSS_LOG_WARN, format, ##__VA_ARGS__)
+
+/**
+ * @brief Logs a general informational message.
+ * @param[in] format A format string for the log message.
+ */
+#define RGSS_LogInfo(format, ...)  RGSS_Log(RGSS_LOG_INFO, format, ##__VA_ARGS__)
+
+/**
+ * @brief Logs a low-level debug message.
+ * @param[in] format A format string for the log message.
+ */
+#define RGSS_LogDebug(format, ...) RGSS_Log(RGSS_LOG_DEBUG, format, ##__VA_ARGS__)
+
 #endif /* RGSS_H */

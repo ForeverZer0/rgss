@@ -3,12 +3,28 @@
 
 VALUE rb_mRGSS;
 VALUE rb_eRGSSError;
+VALUE RGSS_LOGGER;
 
 ID RGSS_ID_UPDATE_VERTICES;
 ID RGSS_ID_BATCH;
 ID RGSS_ID_RENDER;
 ID RGSS_ID_UPDATE;
 ID RGSS_ID_SEND;
+ID RGSS_ID_ADD;
+
+
+void RGSS_Log(RGSS_LOG_LEVEL level, const char *format, ...)
+{
+    if (!RTEST(RGSS_LOGGER))
+        RGSS_LOGGER = rb_const_get(rb_mRGSS, rb_intern("Log"));
+
+    va_list args;
+    va_start(args, format);
+    VALUE msg = rb_sprintf(format, args);
+    va_end(args);
+
+    rb_funcall(RGSS_LOGGER, RGSS_ID_ADD, 2, INT2NUM(level), msg);    
+}
 
 VALUE RGSS_Handle_Alloc(VALUE klass)
 {
@@ -111,7 +127,8 @@ char *RGSS_ReadFileTextRB(VALUE source)
     return buffer;
 }
 
-void Init_rgss(void) {
+void Init_rgss(void)
+{
     rb_mRGSS = rb_define_module("RGSS");
     rb_eRGSSError = rb_define_class_under(rb_mRGSS, "RGSSError", rb_eStandardError);
 
@@ -123,7 +140,7 @@ void Init_rgss(void) {
     RGSS_Init_Game(rb_mRGSS);
     RGSS_Init_Graphics(rb_mRGSS);
     RGSS_Init_Input(rb_mRGSS);
-    
+
     RGSS_Init_Batch(rb_mGraphics);
     RGSS_Init_Image(rb_mRGSS);
     RGSS_Init_Table(rb_mRGSS);
@@ -136,23 +153,24 @@ void Init_rgss(void) {
     RGSS_Init_Texture(rb_mRGSS);
     RGSS_Init_Font(rb_mRGSS);
 
-    rb_define_const(rb_mRGSS, "SIZEOF_VOIDP",  INT2NUM(SIZEOF_VOIDP)); 
-    rb_define_const(rb_mRGSS, "SIZEOF_CHAR",  INT2NUM(1)); 
-    rb_define_const(rb_mRGSS, "SIZEOF_SHORT",  INT2NUM(SIZEOF_SHORT)); 
-    rb_define_const(rb_mRGSS, "SIZEOF_INT",  INT2NUM(SIZEOF_INT)); 
-    rb_define_const(rb_mRGSS, "SIZEOF_LONG",  INT2NUM(SIZEOF_LONG)); 
-    rb_define_const(rb_mRGSS, "SIZEOF_LONG_LONG",  INT2NUM(SIZEOF_LONG_LONG));
-    rb_define_const(rb_mRGSS, "SIZEOF_FLOAT",  INT2NUM(SIZEOF_FLOAT)); 
-    rb_define_const(rb_mRGSS, "SIZEOF_DOUBLE",  INT2NUM(SIZEOF_DOUBLE)); 
-    rb_define_const(rb_mRGSS, "SIZEOF_SIZE_T",  INT2NUM(SIZEOF_SIZE_T)); 
-    rb_define_const(rb_mRGSS, "SIZEOF_SSIZE_T",  INT2NUM(SIZEOF_SSIZE_T)); 
-    rb_define_const(rb_mRGSS, "SIZEOF_PTRDIFF_T",  INT2NUM(SIZEOF_PTRDIFF_T));
-    rb_define_const(rb_mRGSS, "SIZEOF_INTPTR_T",  INT2NUM(SIZEOF_INTPTR_T)); 
-    rb_define_const(rb_mRGSS, "SIZEOF_UINTPTR_T",  INT2NUM(SIZEOF_UINTPTR_T));
+    rb_define_const(rb_mRGSS, "SIZEOF_VOIDP", INT2NUM(SIZEOF_VOIDP));
+    rb_define_const(rb_mRGSS, "SIZEOF_CHAR", INT2NUM(1));
+    rb_define_const(rb_mRGSS, "SIZEOF_SHORT", INT2NUM(SIZEOF_SHORT));
+    rb_define_const(rb_mRGSS, "SIZEOF_INT", INT2NUM(SIZEOF_INT));
+    rb_define_const(rb_mRGSS, "SIZEOF_LONG", INT2NUM(SIZEOF_LONG));
+    rb_define_const(rb_mRGSS, "SIZEOF_LONG_LONG", INT2NUM(SIZEOF_LONG_LONG));
+    rb_define_const(rb_mRGSS, "SIZEOF_FLOAT", INT2NUM(SIZEOF_FLOAT));
+    rb_define_const(rb_mRGSS, "SIZEOF_DOUBLE", INT2NUM(SIZEOF_DOUBLE));
+    rb_define_const(rb_mRGSS, "SIZEOF_SIZE_T", INT2NUM(SIZEOF_SIZE_T));
+    rb_define_const(rb_mRGSS, "SIZEOF_SSIZE_T", INT2NUM(SIZEOF_SSIZE_T));
+    rb_define_const(rb_mRGSS, "SIZEOF_PTRDIFF_T", INT2NUM(SIZEOF_PTRDIFF_T));
+    rb_define_const(rb_mRGSS, "SIZEOF_INTPTR_T", INT2NUM(SIZEOF_INTPTR_T));
+    rb_define_const(rb_mRGSS, "SIZEOF_UINTPTR_T", INT2NUM(SIZEOF_UINTPTR_T));
 
     RGSS_ID_UPDATE_VERTICES = rb_intern("update_vertices");
     RGSS_ID_BATCH = rb_intern("batch");
     RGSS_ID_RENDER = rb_intern("render");
     RGSS_ID_SEND = rb_intern("send");
     RGSS_ID_UPDATE = rb_intern("update");
+    RGSS_ID_ADD = rb_intern("add");
 }
