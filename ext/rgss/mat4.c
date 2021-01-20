@@ -30,7 +30,7 @@ static VALUE mat4_rows(VALUE self)
     {
         float *v = RGSS_VEC4_NEW;
         glm_vec4_copy(&mat[i * 4], v);
-        rb_ary_store(ary, i, VEC4_WRAP(v));
+        rb_ary_store(ary, i, RGSS_VEC4_WRAP(v));
     }
     return ary;
 }
@@ -56,14 +56,14 @@ static VALUE mat4_zero(VALUE klass)
 {
     vec4 *mat = RGSS_MAT4_NEW;
     glm_mat4_zero(mat);
-    return MAT4_WRAP(mat);
+    return RGSS_MAT4_WRAP(mat);
 }
 
 static VALUE mat4_identity(VALUE klass)
 {
     vec4 *mat = RGSS_MAT4_NEW;
     glm_mat4_identity(mat);
-    return MAT4_WRAP(mat);
+    return RGSS_MAT4_WRAP(mat);
 }
 
 static VALUE mat4_initialize(VALUE self, VALUE r1, VALUE r2, VALUE r3, VALUE r4)
@@ -82,7 +82,7 @@ static VALUE mat4_copy(VALUE self)
 {
     vec4 *d = RGSS_MAT4_NEW;
     glm_mat4_copy(DATA_PTR(self), d);
-    return MAT4_WRAP(d);
+    return RGSS_MAT4_WRAP(d);
 }
 
 static VALUE mat4_multiply(VALUE self, VALUE other)
@@ -92,13 +92,13 @@ static VALUE mat4_multiply(VALUE self, VALUE other)
     {
         vec4 *dest = RGSS_MAT4_NEW;
         glm_mat4_mul(DATA_PTR(self), DATA_PTR(other), dest);
-        return MAT4_WRAP(dest);
+        return RGSS_MAT4_WRAP(dest);
     }
     else if (CLASS_OF(other) == rb_cVec4)
     {
         float *v = RGSS_VEC4_NEW;
         glm_mat4_mulv(DATA_PTR(self), DATA_PTR(other), v);
-        return VEC4_WRAP(v);
+        return RGSS_VEC4_WRAP(v);
     }
 
     rb_raise(rb_eTypeError, "%s is not a Mat4 or Vec4", CLASS_NAME(other));
@@ -151,7 +151,7 @@ static VALUE mat4_rotate(VALUE self, VALUE pivot, VALUE angle, VALUE axis)
     float *p = DATA_PTR(pivot);
     float *a = DATA_PTR(axis);
     glm_rotate_at(dst, p, NUM2FLT(angle), a);
-    return MAT4_WRAP(dst);
+    return RGSS_MAT4_WRAP(dst);
 }
 
 static VALUE mat4_rotate_bang(VALUE self, VALUE pivot, VALUE angle, VALUE axis)
@@ -172,7 +172,7 @@ static VALUE mat4_create_rotation(VALUE self, VALUE pivot, VALUE angle, VALUE ax
     float *p = DATA_PTR(pivot);
     float *a = DATA_PTR(axis);
     glm_rotate_atm(dst, p, NUM2FLT(angle), a);
-    return MAT4_WRAP(dst);
+    return RGSS_MAT4_WRAP(dst);
 }
 
 static VALUE mat4_create_rotation_bang(VALUE self, VALUE pivot, VALUE angle, VALUE axis)
@@ -191,7 +191,7 @@ static VALUE mat4_scale(VALUE self, VALUE scale)
     float *vec = DATA_PTR(scale);
 
     glm_scale_to(mat, vec, dst);
-    return MAT4_WRAP(dst);
+    return RGSS_MAT4_WRAP(dst);
 }
 
 static VALUE mat4_scale_bang(VALUE self, VALUE scale)
@@ -208,7 +208,7 @@ static VALUE mat4_translate(VALUE self, VALUE translation)
     vec4 *dst = RGSS_MAT4_NEW;
     float *vec = DATA_PTR(translation);
     glm_translate_to(mat, vec, dst);
-    return MAT4_WRAP(dst);
+    return RGSS_MAT4_WRAP(dst);
 }
 
 static VALUE mat4_translate_bang(VALUE self, VALUE translation)

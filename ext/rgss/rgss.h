@@ -1,9 +1,9 @@
 #ifndef RGSS_H
 #define RGSS_H 1
 
+#include "cglm/cglm.h"
 #include <errno.h>
 #include <ruby.h>
-#include "cglm/cglm.h"
 
 #define NUM2FLT(v)      ((float)NUM2DBL(v))
 #define RB_BOOL(expr)   ((expr) ? Qtrue : Qfalse)
@@ -11,6 +11,7 @@
 #define STR2SYM(str)    ID2SYM(rb_intern(str))
 
 extern VALUE rb_mRGSS;
+extern VALUE rb_eRGSSError;
 
 extern VALUE rb_mGLFW;
 extern VALUE rb_cWindow;
@@ -41,13 +42,14 @@ extern VALUE rb_cFont;
 extern VALUE rb_cTable;
 extern VALUE rb_cColor;
 extern VALUE rb_cTone;
+extern VALUE rb_cIVec2;
 extern VALUE rb_cPoint;
 extern VALUE rb_cSize;
 extern VALUE rb_cRect;
 extern VALUE rb_cVec2;
 extern VALUE rb_cVec3;
 extern VALUE rb_cVec4;
-extern VALUE rb_cMat3; // TODO
+extern VALUE rb_cMat3; // TODO ?
 extern VALUE rb_cMat4; // TODO
 
 void RGSS_Init_GLFW(VALUE parent);
@@ -70,7 +72,6 @@ void RGSS_Init_Font(VALUE parent);
 void RGSS_Init_Texture(VALUE parent);
 
 VALUE RGSS_Handle_Alloc(VALUE klass);
-
 
 #define RGSS_HAS_FLAG(value, flag) (((value) & (flag)) != 0)
 
@@ -107,19 +108,18 @@ static inline VALUE RGSS_IVec2_New(VALUE klass, int v0, int v1)
     return Data_Wrap_Struct(klass, NULL, RUBY_DEFAULT_FREE, vec);
 }
 
-static inline VALUE RGSS_IVec4_New(VALUE klass, int x, int y, int w, int h)
+static inline VALUE RGSS_Rect_New(int x, int y, int w, int h)
 {
     int *vec = xmalloc(sizeof(int) * 4);
     vec[0] = x;
     vec[1] = y;
     vec[2] = w;
     vec[3] = h;
-    return Data_Wrap_Struct(klass, NULL, RUBY_DEFAULT_FREE, vec);
+    return Data_Wrap_Struct(rb_cRect, NULL, RUBY_DEFAULT_FREE, vec);
 }
 
-#define RGSS_Point_New(x, y)               RGSS_IVec2_New(rb_cPoint, x, y)
-#define RGSS_Size_New(width, height)       RGSS_IVec2_New(rb_cSize, width, height)
-#define RGSS_Rect_New(x, y, width, height) RGSS_IVec4_New(rb_cRect, x, y, width, height)
+#define RGSS_Point_New(x, y)         RGSS_IVec2_New(rb_cPoint, x, y)
+#define RGSS_Size_New(width, height) RGSS_IVec2_New(rb_cSize, width, height)
 
 #if SIZEOF_VOIDP == SIZEOF_LONG
 #define PTR2NUM(x) (LONG2NUM((long)(x)))
@@ -130,29 +130,25 @@ static inline VALUE RGSS_IVec4_New(VALUE klass, int x, int y, int w, int h)
 #define NUM2PTR(x) ((void *)(NUM2ULL(x)))
 #endif
 
-#define RGSS_VEC2_SIZE (sizeof(float) * 2)
-#define RGSS_VEC3_SIZE (sizeof(float) * 3)
-#define RGSS_VEC4_SIZE (sizeof(float) * 4)
-#define RGSS_MAT3_SIZE (RGSS_VEC3_SIZE * 3)
+#define RGSS_VEC2_SIZE (SIZEOF_FLOAT * 2)
+#define RGSS_VEC3_SIZE (SIZEOF_FLOAT * 3)
+#define RGSS_VEC4_SIZE (SIZEOF_FLOAT * 4)
 #define RGSS_MAT4_SIZE (RGSS_VEC4_SIZE * 4)
 
-#define RGSS_VEC2_ALIGN (sizeof(float) * 2)
-#define RGSS_VEC3_ALIGN (sizeof(float) * 4)
-#define RGSS_VEC4_ALIGN (sizeof(float) * 4)
-#define RGSS_MAT3_ALIGN (sizeof(float) * 4)
-#define RGSS_MAT4_ALIGN (sizeof(float) * 4)
+#define RGSS_VEC2_ALIGN (SIZEOF_FLOAT * 2)
+#define RGSS_VEC3_ALIGN (SIZEOF_FLOAT * 4)
+#define RGSS_VEC4_ALIGN (SIZEOF_FLOAT * 4)
+#define RGSS_MAT4_ALIGN (SIZEOF_FLOAT * 4)
 
 #define RGSS_VEC2_NEW (RGSS_MALLOC_ALIGNED(RGSS_VEC2_SIZE, RGSS_VEC2_ALIGN))
 #define RGSS_VEC3_NEW (RGSS_MALLOC_ALIGNED(RGSS_VEC3_SIZE, RGSS_VEC3_ALIGN))
 #define RGSS_VEC4_NEW (RGSS_MALLOC_ALIGNED(RGSS_VEC4_SIZE, RGSS_VEC4_ALIGN))
-#define RGSS_MAT3_NEW (RGSS_MALLOC_ALIGNED(RGSS_MAT3_SIZE, RGSS_MAT3_ALIGN))
 #define RGSS_MAT4_NEW (RGSS_MALLOC_ALIGNED(RGSS_MAT4_SIZE, RGSS_MAT4_ALIGN))
 
-#define VEC2_WRAP(v) Data_Wrap_Struct(rb_cVec2, NULL, free, v)
-#define VEC3_WRAP(v) Data_Wrap_Struct(rb_cVec3, NULL, free, v)
-#define VEC4_WRAP(v) Data_Wrap_Struct(rb_cVec4, NULL, free, v)
-#define MAT3_WRAP(m) Data_Wrap_Struct(rb_cMat3, NULL, free, m)
-#define MAT4_WRAP(m) Data_Wrap_Struct(rb_cMat4, NULL, free, m)
+#define RGSS_VEC2_WRAP(v) Data_Wrap_Struct(rb_cVec2, NULL, free, v)
+#define RGSS_VEC3_WRAP(v) Data_Wrap_Struct(rb_cVec3, NULL, free, v)
+#define RGSS_VEC4_WRAP(v) Data_Wrap_Struct(rb_cVec4, NULL, free, v)
+#define RGSS_MAT4_WRAP(m) Data_Wrap_Struct(rb_cMat4, NULL, free, m)
 
 extern const char *SPRITE_VERT_SRC;
 extern const char *SPRITE_FRAG_SRC;
@@ -164,9 +160,7 @@ static inline void *RGSS_MALLOC_ALIGNED(size_t size, size_t alignment)
     switch (err)
     {
         case EINVAL:
-            rb_raise(rb_eRuntimeError,
-                     "alignment %zu was not a power of two, or was not a multiple of sizeof(void *) == %zu", alignment,
-                     sizeof(void *));
+            rb_raise(rb_eRGSSError, "invalid alignment specified");
         case ENOMEM:
             rb_raise(rb_eNoMemError, "out of memory");
     }
@@ -204,7 +198,9 @@ static inline void *RGSS_ValuePointer(VALUE value)
 {
     if (value == Qnil)
         return NULL;
-        
+
+    // TODO: Check for Fiddle::Pointer type
+
     if (RB_TYPE_P(value, T_DATA))
         return DATA_PTR(value);
 
@@ -217,18 +213,44 @@ static inline void *RGSS_ValuePointer(VALUE value)
     return NULL;
 }
 
+static inline void RGSS_SizeNotEmpty(int width, int height)
+{
+    if (width < 1)
+        rb_raise(rb_eArgError, "width must be greater than 0 (given $d)", width);
+    if (height < 1)
+        rb_raise(rb_eArgError, "height must be greater than 0 (given %d)", height);
+}
+
+static inline void RGSS_PackColor(RGSS_Color color, unsigned int *value)
+{
+    unsigned char *rgba = (unsigned char *)value;
+    rgba[0] = (unsigned char)roundf(color[0] * 255.0f);
+    rgba[1] = (unsigned char)roundf(color[1] * 255.0f);
+    rgba[2] = (unsigned char)roundf(color[2] * 255.0f);
+    rgba[3] = (unsigned char)roundf(color[3] * 255.0f);
+}
+
+static inline void RGSS_UnpackColor(unsigned int value, RGSS_Color color)
+{
+    unsigned char *rgba = (unsigned char *)&value;
+    color[0] = (float)rgba[0] / 255.0f;
+    color[1] = (float)rgba[1] / 255.0f;
+    color[2] = (float)rgba[2] / 255.0f;
+    color[3] = (float)rgba[3] / 255.0f;
+}
+
 VALUE RGSS_Color_New(VALUE klass, float r, float g, float b, float a);
-void RGSS_Image_Load(const char *path, int *width, int *height, unsigned char **pixels);
+
 
 #define RB2PTR(value) RGSS_ValuePointer(value)
 
-#define RGSS_DEFINE_DUMP(type)                                                                                          \
+#define RGSS_DEFINE_DUMP(type)                                                                                         \
     static VALUE type##_Dump(int argc, VALUE *argv, VALUE self)                                                        \
     {                                                                                                                  \
         return rb_str_new((const char *)DATA_PTR(self), sizeof(type));                                                 \
     }
 
-#define RGSS_DEFINE_LOAD_EX(type, mark_func, free_func)                                                                 \
+#define RGSS_DEFINE_LOAD_EX(type, mark_func, free_func)                                                                \
     static VALUE type##_Load(VALUE klass, VALUE str)                                                                   \
     {                                                                                                                  \
         const char *bin = StringValuePtr(str);                                                                         \
@@ -239,19 +261,95 @@ void RGSS_Image_Load(const char *path, int *width, int *height, unsigned char **
 
 #define RGSS_DEFINE_LOAD(type) RGSS_DEFINE_LOAD_EX(type, NULL, RUBY_DEFAULT_FREE)
 
-#define RGSS_DEFINE_MARSHAL(type)                                                                                       \
-    RGSS_DEFINE_DUMP(type)                                                                                              \
+#define RGSS_DEFINE_MARSHAL(type)                                                                                      \
+    RGSS_DEFINE_DUMP(type)                                                                                             \
     RGSS_DEFINE_LOAD(type)
 
-#define RGSS_DEFINE_MARSHAL_EX(type, mark_func, free_func)                                                              \
-    RGSS_DEFINE_DUMP(type)                                                                                              \
+#define RGSS_DEFINE_MARSHAL_EX(type, mark_func, free_func)                                                             \
+    RGSS_DEFINE_DUMP(type)                                                                                             \
     RGSS_DEFINE_LOAD_EX(type, mark_func, free_func)
 
-#define RGSS_ASSERT_UNFROZEN(value)                                                                                     \
+#define RGSS_ASSERT_UNFROZEN(value)                                                                                    \
     if (rb_obj_frozen_p(value))                                                                                        \
     rb_raise(rb_eFrozenError, "cannot modify frozen %s", CLASS_NAME(self))
 
 #define RGSS_MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define RGSS_MIN(a, b) (((a) < (b)) ? (a) : (b))
+
+/**
+ * @brief Read the context of the specified file descriptor into a buffer, raising an appropriate Ruby excpetion on failure.
+ * @param[in] fd A valid file descriptor to read.
+ * @return A null-terminated buffer containing the file text. The pointer must be freed when done with it.
+ */
+char *RGSS_ReadFileDescriptorText(int fd);
+
+/**
+ * @brief Read the context of the specified file into a buffer, raising an appropriate Ruby excpetion on failure.
+ * @param[in] path The path of the file to read.
+ * @return A null-terminated buffer containing the file text The pointer must be freed when done with it.
+ */
+char *RGSS_ReadFileText(const char *path);
+
+/**
+ * @brief Read the context of the specified Ruby file into a buffer, raising an appropriate Ruby excpetion on failure.
+ * @param[in] source A Ruby File instance, a String path, or an Integer file descriptor.
+ * @return A null-terminated buffer containing the file text. The pointer must be freed when done with it.
+ */
+char *RGSS_ReadFileTextRB(VALUE source);
+
+/**
+ * @brief Read the contents of the file specified file into a buffer, raising an appropriate Ruby excpetion on failure.
+ * @param[in] path The path of the file to read.
+ * @param[in,out] bufsize The number of bytes contained in the returned buffer.
+ * @return A buffer containing the file contents. The pointer must be freed when done with it.
+ */
+void *RGSS_ReadFile(const char *path, long *bufsize);
+
+/**
+ * @brief Creates a new Ruby Image instance.
+ * @param[in] width The width of the image, in pixels.
+ * @param[in] height The height of the image, in pixels.
+ * @param[in] pixels A pointer to a tightly packed RGBA pixel data, 4 bytes per pixel. The memory must not be
+ * freed, and should persist for the lifetime of the object.
+ * @return The Ruby instance of the image.
+ */
+VALUE RGSS_Image_New(int width, int height, unsigned char *pixels);
+
+/**
+ * @brief Creates a new Ruby Image instance from the specified image file.
+ * @param[in] path The path to an image file.
+ * @return The Ruby instance of the image.
+ */
+VALUE RGSS_Image_NewFromFile(const char *path);
+
+/**
+ * @brief Saves an image in PNG format to the specified filename.
+ * @param[in] filename The path of the file where the image will be saved.
+ * @param[in] width The width of the image, in pixels.
+ * @param[in] height The height of the image, in pixels.
+ * @param[in] pixels A pointer to a tightly packed RGBA pixel data, 4 bytes per pixel.
+ * @return @c 0 on failure, otherwise a non-zero integer.
+ */
+int RGSS_Image_SavePNG(const char *filename, int width, int height, unsigned char *pixels);
+
+/**
+ * @brief Saves an image in JPG format to the specified filename.
+ * @param[in] filename The path of the file where the image will be saved.
+ * @param[in] width The width of the image, in pixels.
+ * @param[in] height The height of the image, in pixels.
+ * @param[in] pixels A pointer to a tightly packed RGBA pixel data, 4 bytes per pixel.
+ * @param[in] quality A value between @c 0 and @c 100 indicating the quality level to save the image as.
+ * @return @c 0 on failure, otherwise a non-zero integer.
+ */
+int RGSS_Image_SaveJPG(const char *filename, int width, int height, unsigned char *pixels, int quality);
+
+/**
+ * @brief Loads an image file.
+ * @param[in] path The path to the image file.
+ * @param[in,out] width The width of the image, in pixels;
+ * @param[in,out] height The height of the image, in pixels;
+ * @param[in,out] pixels A pointer to recieve the address of the images in pixels, a tightly packed array of RGBA data, 4 bytes per pixel.
+ */
+void RGSS_Image_Load(const char *path, int *width, int *height, unsigned char **pixels);
 
 #endif /* RGSS_H */

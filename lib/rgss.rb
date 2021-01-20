@@ -1,3 +1,4 @@
+$RGSS_DEBUG = true
 
 module RGSS
 
@@ -22,8 +23,6 @@ end
 
 require_relative 'rgss/version'
 require_relative 'rgss/rgss'
-# require_relative 'rgss/plane'
-
 
 
 module RGSS
@@ -41,6 +40,17 @@ module RGSS
       $sprite.x += SPEED if Input.press?(:RIGHT)
       $sprite.z += 1 if Input.press?(:RAISE)
       $sprite.z -= 1 if Input.press?(:LOWER)
+
+      s = $fog.size
+      if Input.press?(:RAISE)
+        $fog.size = Size.new(s.width + 16, s.height + 16)
+      end
+      if Input.press?(:LOWER)
+        $fog.size = Size.new(s.width - 16, s.height - 16)
+      end
+
+      $fog.position = vec2((1024 - s.width) * 0.5, (768 - s.height) * 0.5)
+
 
       $sprite.update(delta)
       $v.update(delta)
@@ -86,7 +96,7 @@ module RGSS
   $fog = Plane.new
   $fog.texture = fog_tex
   $fog.size = Size.new(1024, 768)
-  $fog.scroll = vec2(24.0, 32.0)
+  $fog.scroll = vec2(320.0, 1240.0)
   $fog.opacity = 0.5
 
   markup = <<-EOS
@@ -109,17 +119,7 @@ EOS
   $sprite.flip = 2
   $sprite.texture = Texture.wrap(*args)
  
-  table = Table.new(2, 3, 4)
-  table[1, 2, 2] = 16
-  str = table._dump
-
-  table = Table._load(str)
-
-  table.each do |x, y, z, v|
-    puts "X: #{x}, Y: #{y}, Z: #{z} = #{v}"
-  end
-
-
+  
   Game.speed = 1.0
   Game.main(30)
   Game.terminate

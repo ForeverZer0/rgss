@@ -1,5 +1,5 @@
 #include "game.h"
-#include "glad.h"
+#include "graphics.h"
 
 VALUE rb_cTexture;
 
@@ -176,10 +176,7 @@ static VALUE RGSS_Texture_FromID(VALUE klass, VALUE id, VALUE width, VALUE heigh
 
     if (!glIsTexture(tex->id))
         rb_raise(rb_eArgError, "invalid texture ID");
-    if (tex->width < 1)
-        rb_raise(rb_eArgError, "width must be greater than 0 (given %d)", tex->width);
-    if (tex->height < 1)
-        rb_raise(rb_eArgError, "height must be greater than 0 (given %d)", tex->height);
+    RGSS_SizeNotEmpty(tex->width, tex->height);
 
     return Data_Wrap_Struct(klass, NULL, RUBY_DEFAULT_FREE, tex);
 }
@@ -208,14 +205,9 @@ static VALUE RGSS_Texture_Initialize(int argc, VALUE *argv, VALUE self)
     VALUE width, height, data, opts;
     rb_scan_args(argc, argv, "21:", &width, &height, &data, &opts);
 
-    int w, h;
-    w = NUM2INT(width);
-    h = NUM2INT(height);
-
-    if (w < 1)
-        rb_raise(rb_eArgError, "width must be greater than 0 (given %d)", w);
-    if (h < 1)
-        rb_raise(rb_eArgError, "height must be greater than 0 (given %d)", h);
+    int w = NUM2INT(width);
+    int h = NUM2INT(height);
+    RGSS_SizeNotEmpty(w, h);
 
     RGSS_Texture *tex = DATA_PTR(self);
     void *pixels = NULL;
@@ -228,14 +220,9 @@ static VALUE RGSS_Texture_Initialize(int argc, VALUE *argv, VALUE self)
         VALUE color = rb_hash_aref(opts, STR2SYM("color"));
         if (RTEST(color))
         {
-            unsigned char rgba[4];
-            float *vec = DATA_PTR(color);
-            rgba[0] = (unsigned char)roundf(vec[0] * 255.0);
-            rgba[1] = (unsigned char)roundf(vec[1] * 255.0);
-            rgba[2] = (unsigned char)roundf(vec[2] * 255.0);
-            rgba[3] = (unsigned char)roundf(vec[3] * 255.0);
+            unsigned int packed;
+            RGSS_PackColor(DATA_PTR(color), &packed);
 
-            unsigned int packed = *(unsigned int *)&rgba[0];
             long len = w * h;
             pixels = xmalloc(len * sizeof(unsigned int));
             unsigned int *ptr = pixels;
@@ -258,16 +245,12 @@ static VALUE RGSS_Texture_ToImage(VALUE self)
     RGSS_Texture *tex = DATA_PTR(self);
     RGSS_ASSERT_TEXTURE(tex);
 
-    GLFWimage *img = ALLOC(GLFWimage);
-    img->width = tex->width;
-    img->height = tex->height;
-    img->pixels = xmalloc(img->width * img->height * sizeof(unsigned int));
-
+    unsigned char *pixels = xmalloc(tex->width * tex->height * sizeof(unsigned int));
     RGSS_Texture_BindFramebuffer(tex);
-    glReadPixels(0, 0, tex->width, tex->height, GL_RGBA, GL_UNSIGNED_BYTE, img->pixels);
+    glReadPixels(0, 0, tex->width, tex->height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
 
-    return Data_Wrap_Struct(rb_cImage, NULL, RGSS_Image_Free, img);
+    return RGSS_Image_New(tex->width, tex->height, pixels);
 }
 
 static VALUE RGSS_Texture_Target(int argc, VALUE *argv, VALUE self)

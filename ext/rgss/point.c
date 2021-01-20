@@ -17,12 +17,12 @@ static VALUE RGSS_IVec_Alloc(VALUE klass)
 
 static VALUE RGSS_IVec_GetX(VALUE self)
 {
-    return INT2NUM(((int*) DATA_PTR(self))[0]);
+    return INT2NUM(((int *)DATA_PTR(self))[0]);
 }
 
 static VALUE RGSS_IVec_GetY(VALUE self)
 {
-    return INT2NUM(((int*) DATA_PTR(self))[1]);
+    return INT2NUM(((int *)DATA_PTR(self))[1]);
 }
 
 static VALUE RGSS_IVec_SetX(VALUE self, VALUE value)
@@ -55,7 +55,7 @@ static VALUE RGSS_IVec_GetIndex(VALUE self, VALUE index)
     int i = NUM2INT(index);
     if (i < 0 || i > 1)
         return Qnil;
-    return INT2NUM(((int*) DATA_PTR(self))[i]);
+    return INT2NUM(((int *)DATA_PTR(self))[i]);
 }
 
 static VALUE RGSS_IVec_SetIndex(VALUE self, VALUE index, VALUE value)
@@ -64,7 +64,7 @@ static VALUE RGSS_IVec_SetIndex(VALUE self, VALUE index, VALUE value)
     int i = NUM2INT(index);
     if (i < 0 || i > 1)
         rb_raise(rb_eArgError, "index out of range (given %d, expect 0..1)", i);
-    
+
     int *vec = DATA_PTR(self);
     vec[i] = NUM2INT(value);
     return value;
@@ -98,7 +98,7 @@ static VALUE RGSS_IVec_Clone(VALUE self)
 {
     int *src = DATA_PTR(self), *dst = xmalloc(IVEC_SIZE);
     memcpy(dst, src, IVEC_SIZE);
-    
+
     VALUE value = Data_Wrap_Struct(CLASS_OF(self), NULL, RUBY_DEFAULT_FREE, dst);
     if (rb_obj_frozen_p(self))
         rb_obj_freeze(value);
@@ -156,7 +156,7 @@ static VALUE RGSS_IVec_Set(VALUE self, VALUE x, VALUE y)
     int *vec = DATA_PTR(self);
     vec[0] = NUM2INT(x);
     vec[1] = NUM2INT(y);
-    return self;    
+    return self;
 }
 
 static VALUE RGSS_IVec_ToArray(VALUE self)
@@ -171,7 +171,7 @@ static VALUE RGSS_Point_ToHash(VALUE self)
     VALUE hash = rb_hash_new();
     rb_hash_aset(hash, STR2SYM("x"), INT2NUM(vec[0]));
     rb_hash_aset(hash, STR2SYM("y"), INT2NUM(vec[1]));
-    return hash;    
+    return hash;
 }
 
 static VALUE RGSS_Size_ToHash(VALUE self)
@@ -180,7 +180,7 @@ static VALUE RGSS_Size_ToHash(VALUE self)
     VALUE hash = rb_hash_new();
     rb_hash_aset(hash, STR2SYM("width"), INT2NUM(vec[0]));
     rb_hash_aset(hash, STR2SYM("height"), INT2NUM(vec[1]));
-    return hash;   
+    return hash;
 }
 
 static VALUE RGSS_IVec_Initialize(int argc, VALUE *argv, VALUE self)
@@ -192,16 +192,15 @@ static VALUE RGSS_IVec_Initialize(int argc, VALUE *argv, VALUE self)
 
     switch (argc)
     {
-        case 0: break;
-        case 1:
-        {
+        case 0:
+            break;
+        case 1: {
             memcpy(vec, DATA_PTR(x), IVEC_SIZE);
             break;
         }
-        case 2:
-        {
-            vec[0] = NUM2INT(x);            
-            vec[1] = NUM2INT(y);                        
+        case 2: {
+            vec[0] = NUM2INT(x);
+            vec[1] = NUM2INT(y);
             break;
         }
     }

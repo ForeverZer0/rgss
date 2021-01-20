@@ -1,5 +1,5 @@
 
-#include "glad.h"
+#include "graphics.h"
 #include "game.h"
 
 VALUE rb_mGame;
@@ -138,10 +138,7 @@ static VALUE RGSS_Game_Create(int argc, VALUE *argv, VALUE game)
 
     int w = NUM2INT(width);
     int h = NUM2INT(height);
-    if (w < 1)
-        rb_raise(rb_eArgError, "width must be greater than 0");
-    if (h < 1)
-        rb_raise(rb_eArgError, "height must be greater than 0");
+    RGSS_SizeNotEmpty(w, h);
 
     int resizable, fullscreen, vsync, topmost, decorated, visible, locked, debug;
     RGSS_ParseOpt(opts, "resizable", GLFW_FALSE, &resizable);
@@ -152,6 +149,7 @@ static VALUE RGSS_Game_Create(int argc, VALUE *argv, VALUE game)
     RGSS_ParseOpt(opts, "visible", GLFW_TRUE, &visible);
     RGSS_ParseOpt(opts, "locked", GLFW_FALSE, &locked);
     RGSS_ParseOpt(opts, "debug", GLFW_FALSE, &RGSS_GAME.debug);
+    RGSS_ParseOpt(opts, "auto_ortho", GLFW_TRUE, &RGSS_GAME.auto_ortho);
 
     glfwDefaultWindowHints();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
@@ -167,7 +165,7 @@ static VALUE RGSS_Game_Create(int argc, VALUE *argv, VALUE game)
     glfwWindowHint(GLFW_VISIBLE, visible);
     if (RGSS_GAME.debug)
     {
-        rb_gv_set("$DEBUG", Qtrue);
+        rb_gv_set("$RGSS_DEBUG", Qtrue);
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, debug);
     }
 
@@ -272,7 +270,7 @@ static VALUE RGSS_Game_GetSpeed(VALUE game)
 static VALUE RGSS_Game_SetSpeed(VALUE game, VALUE speed)
 {
     RGSS_ASSERT_GAME;
-    RGSS_GAME.speed = RGSS_MAX(1.0, NUM2DBL(speed));
+    RGSS_GAME.speed = RGSS_MAX(0.1, NUM2DBL(speed));
     return speed;
 }
 
@@ -310,9 +308,8 @@ static VALUE RGSS_Game_SetIcon(VALUE game, VALUE image)
 
         if (RB_TYPE_P(image, T_STRING))
         {
-            img = xmalloc(sizeof(GLFWimage));
-            RGSS_Image_Load(StringValueCStr(image), &img->width, &img->height, &img->pixels);
-            ivar = Data_Wrap_Struct(rb_cImage, NULL, RGSS_Image_Free, img);
+            ivar = RGSS_Image_NewFromFile(StringValueCStr(image));
+            img = DATA_PTR(ivar);
         }
         else if (RB_TYPE_P(image, T_DATA))
         {

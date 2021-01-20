@@ -34,7 +34,8 @@
         return Data_Wrap_Struct(klass, NULL, free, v);                                                                 \
     }
 
-typedef enum {
+typedef enum
+{
     RGSS_FLIP_NONE = 0x00,
     RGSS_FLIP_X = 0x01,
     RGSS_FLIP_Y = 0x02,
@@ -109,6 +110,7 @@ typedef struct
 {
     GLFWwindow *window;
     int debug;
+    int auto_ortho;
     double speed;
     int rect[4];
     struct
@@ -167,8 +169,6 @@ void RGSS_Input_Update(void);
 
 VALUE RGSS_Graphics_Restore(VALUE graphics);
 
-void RGSS_Image_Free(void *img);
-void RGSS_Image_SavePNG(const char *filename, int width, int height, unsigned char *pixels);
 
 extern RGSS_Game RGSS_GAME;
 
@@ -189,42 +189,41 @@ static inline void RGSS_ParseOpt(VALUE opts, const char *name, int ifnone, int *
     }
 }
 
-static inline char *RGSS_FileRead(VALUE path)
-{
-    if (NIL_P(path))
-        rb_raise(rb_eArgError, "path cannot be nil");
-
-    char *filename = StringValueCStr(path);
-    struct stat st;
-    if (stat(filename, &st) != 0)
-    {
-        VALUE enoent = rb_const_get(rb_mErrno, rb_intern("ENOENT"));
-        rb_raise(enoent, filename);
-    }
-
-    FILE *fp = fopen(filename, "rb");
-    if (fp == NULL)
-        rb_raise(rb_eIOError, "failed to open %s", filename);
-
-    fseek(fp, 0, SEEK_END);
-    long len = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-
-    char *buffer = xmalloc(len + 1);
-    if (buffer == NULL)
-        rb_raise(rb_eNoMemError, "out of memory");
-
-    size_t rd = fread(buffer, 1, len, fp);
-    if (rd != len)
-        rb_raise(rb_eIOError, "failed to read %s", filename);
-
-    buffer[0] = '\0';
-    return buffer;
-}
 
 int RGSS_Batch_Sort(const void *obj1, const void *obj2);
 VALUE RGSS_Batch_Add(VALUE self, VALUE obj);
 VALUE RGSS_Batch_Remove(VALUE self, VALUE obj);
 VALUE RGSS_Batch_Invalidate(VALUE self);
+
+extern ID RGSS_ID_UPDATE_VERTICES;
+extern ID RGSS_ID_BATCH;
+extern ID RGSS_ID_RENDER;
+extern ID RGSS_ID_UPDATE;
+extern ID RGSS_ID_SEND;
+
+#define ATTR_READER(type, attr, field, to_ruby)                                                                        \
+    static VALUE type##_Get##attr(VALUE self)                                                                          \
+    {                                                                                                                  \
+        return to_ruby(((type *)DATA_PTR(self))->field);                                                               \
+    }
+
+#define ATTR_WRITER(type, attr, field, to_c)                                                                           \
+    static VALUE type##_Set##attr(VALUE self, VALUE value)                                                             \
+    {                                                                                                                  \
+        ((type *)DATA_PTR(self))->field = to_c(value);                                                                 \
+        return value;                                                                                                  \
+    }
+
+#define ATTR_ACCESSOR(type, attr, field, to_ruby, to_c)                                                                \
+    ATTR_READER(type, attr, field, to_ruby)                                                                            \
+    ATTR_WRITER(type, attr, field, to_c)
+
+#define DEFINE_ACCESSOR(klass, type, attr, name) \
+rb_define_method0(klass,  name, type##_##Get##attr, 0);\
+rb_define_method1(klass, name"=" , type##_##Set##attr, 1)
+
+
+
+
 
 #endif /* RGSS_GAME_H */

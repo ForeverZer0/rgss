@@ -1,7 +1,12 @@
-#include "rgss.h"
-#include "GLFW/glfw3.h"
+#include "graphics.h"
 
 VALUE rb_cImage;
+
+typedef struct {
+    int width;
+    int height;
+    unsigned char *pixels;
+} RGSS_Image; // TODO: Move to main header
 
 #define STBI_NO_PSD 1
 #define STBI_NO_HDR 1
@@ -28,39 +33,83 @@ VALUE rb_cImage;
 #define BYTES_PER_PIXEL 4
 #define COMPONENT_COUNT 4
 
-void RGSS_Image_Free(void *img)
+static void RGSS_Image_Free(void *img)
 {
     if (img)
     {
-        GLFWimage *image = img;
+        RGSS_Image *image = img;
         if (image->pixels)
             stbi_image_free(image->pixels);
         xfree(image);
     }
 }
 
+int RGSS_Image_SavePNG(const char *filename, int width, int height, unsigned char *pixels)
+{
+    RUBY_ASSERT_MESG(filename != NULL, "invalid filename specified");
+    RGSS_SizeNotEmpty(width, height);
+    return stbi_write_png(filename, width, height, COMPONENT_COUNT, pixels, width * COMPONENT_COUNT);
+}
+
+int RGSS_Image_SaveJPG(const char *filename, int width, int height, unsigned char *pixels, int quality)
+{
+    RUBY_ASSERT_MESG(filename != NULL, "invalid filename specified");
+    RGSS_SizeNotEmpty(width, height);
+    quality = RGSS_MAX(0, RGSS_MIN(100, quality));
+    return stbi_write_jpg(filename, width, height, COMPONENT_COUNT, pixels, quality);
+}
+
+VALUE RGSS_Image_New(int width, int height, unsigned char *pixels)
+{
+    RGSS_SizeNotEmpty(width, height);
+    if (pixels == NULL)
+        rb_raise(rb_eArgError, "pixel data cannot be nil");
+
+    RGSS_Image *img = ALLOC(RGSS_Image);
+    img->width = width;
+    img->height = height;
+    img->pixels = pixels;
+    return Data_Wrap_Struct(rb_cImage, NULL, RGSS_Image_Free, img);
+}
+
+VALUE RGSS_Image_NewFromFile(const char *path)
+{
+    RGSS_Image *img = ALLOC(RGSS_Image);
+    RGSS_Image_Load(path, &img->width, &img->height, &img->pixels);
+    return Data_Wrap_Struct(rb_cImage, NULL, RGSS_Image_Free, img);
+}
+
+void RGSS_Image_Load(const char *path, int *width, int *height, unsigned char **pixels)
+{
+    // TODO: Confirm path
+
+    *pixels = stbi_load(path, width, height, NULL, COMPONENT_COUNT);
+    if (pixels == NULL)
+        rb_raise(rb_eRGSSError, "failed to load image");
+}
+
 static VALUE RGSS_Image_Alloc(VALUE klass)
 {
-    GLFWimage *image = ALLOC(GLFWimage);
-    memset(image, 0, sizeof(GLFWimage));
+    RGSS_Image *image = ALLOC(RGSS_Image);
+    memset(image, 0, sizeof(RGSS_Image));
     return Data_Wrap_Struct(klass, NULL, RGSS_Image_Free, image);
 }
 
 static VALUE RGSS_Image_GetWidth(VALUE self)
 {
-    GLFWimage *image = DATA_PTR(self);
+    RGSS_Image *image = DATA_PTR(self);
     return INT2NUM(image->width);
 }
 
 static VALUE RGSS_Image_GetHeight(VALUE self)
 {
-    GLFWimage *image = DATA_PTR(self);
+    RGSS_Image *image = DATA_PTR(self);
     return INT2NUM(image->height);
 }
 
 static VALUE RGSS_Image_GetPixels(VALUE self)
 {
-    GLFWimage *image = DATA_PTR(self);
+    RGSS_Image *image = DATA_PTR(self);
     if (image->pixels)
     {
         size_t size = image->width * image->height * BYTES_PER_PIXEL;
@@ -69,19 +118,9 @@ static VALUE RGSS_Image_GetPixels(VALUE self)
     return Qnil;
 }
 
-void RGSS_Image_Load(const char *path, int *width, int *height, unsigned char **pixels)
-{
-    // TODO: Confirm path
-    
-
-    *pixels = stbi_load(path, width, height, NULL, COMPONENT_COUNT);
-    if (pixels == NULL)
-        rb_raise(rb_eRuntimeError, "failed to load image");
-}
-
 static VALUE RGSS_Image_Dispose(VALUE self)
 {
-    GLFWimage *image = DATA_PTR(self);
+    RGSS_Image *image = DATA_PTR(self);
     if (image->pixels)
     {
         xfree(image->pixels);
@@ -92,7 +131,7 @@ static VALUE RGSS_Image_Dispose(VALUE self)
 
 static VALUE RGSS_Image_IsDisposed(VALUE self)
 {
-    GLFWimage *image = DATA_PTR(self);
+    RGSS_Image *image = DATA_PTR(self);
     return RB_BOOL(image->pixels == NULL);
 }
 
@@ -101,7 +140,7 @@ static VALUE RGSS_Image_Initialize(int argc, VALUE *argv, VALUE self)
     VALUE x, y, blob;
     rb_scan_args(argc, argv, "12", &x, &y, &blob);
 
-    GLFWimage *image = DATA_PTR(self);
+    RGSS_Image *image = DATA_PTR(self);
 
     switch (argc)
     {
@@ -114,12 +153,8 @@ static VALUE RGSS_Image_Initialize(int argc, VALUE *argv, VALUE self)
         case 3:
         {
             image->width = NUM2INT(x);
-            if (image->width < 1)
-                rb_raise(rb_eArgError, "width must be greater than 0");
-
             image->height = NUM2INT(y);
-            if (image->height < 1)
-                rb_raise(rb_eArgError, "height must be greater than 0");
+            RGSS_SizeNotEmpty(image->width, image->height);
 
             size_t size = image->width * image->height * BYTES_PER_PIXEL;
             image->pixels = xmalloc(size);
@@ -148,21 +183,18 @@ static VALUE RGSS_Image_Initialize(int argc, VALUE *argv, VALUE self)
 
 static VALUE RGSS_Image_GetAddress(VALUE self)
 {
-    GLFWimage *image = DATA_PTR(self);
+    RGSS_Image *image = DATA_PTR(self);
     return PTR2NUM(image->pixels);
 }
 
-int RGSS_Image_SavePNG(const char *filename, int width, int height, unsigned char *pixels)
-{
-    return stbi_write_png(filename, width, height, COMPONENT_COUNT, pixels, width * COMPONENT_COUNT);
-}
+
 
 static VALUE RGSS_Image_Save(int argc, VALUE *argv, VALUE self)
 {
     VALUE path, format, opts;
     rb_scan_args(argc, argv, "11:", &path, &format, &opts);
 
-    GLFWimage *image = DATA_PTR(self);
+    RGSS_Image *image = DATA_PTR(self);
     if (image->pixels == NULL)
         rb_raise(rb_eRuntimeError, "disposed image");
 

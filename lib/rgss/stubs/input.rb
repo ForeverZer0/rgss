@@ -1,6 +1,6 @@
 module RGSS
 
-
+  
   module Input
 
     def self.trigger?(sym)
@@ -33,6 +33,7 @@ module RGSS
     def self.bind(sym, keys = nil, mouse = nil, gamepad = nil)
     end
 
+    # @!group Keyboard Keys
 
     KEY_UNKNOWN = -1
     KEY_SPACE = 32
@@ -157,12 +158,20 @@ module RGSS
     KEY_MENU = 348
     KEY_LAST = KEY_MENU
 
+    # @!endgroup
+
+    # @!group Modifier Keys
+
     MOD_SHIFT = 0x0001
     MOD_CONTROL = 0x0002
     MOD_ALT = 0x0004
     MOD_SUPER = 0x0008
     MOD_CAPS_LOCK = 0x0010
     MOD_NUM_LOCK = 0x0020
+
+    # @!endgroup
+
+    # @!group Mouse Buttons
 
     MOUSE_BUTTON_1 = 0
     MOUSE_BUTTON_2 = 1
@@ -177,23 +186,9 @@ module RGSS
     MOUSE_BUTTON_RIGHT = MOUSE_BUTTON_2
     MOUSE_BUTTON_MIDDLE = MOUSE_BUTTON_3
 
-    JOYSTICK_1 = 0
-    JOYSTICK_2 = 1
-    JOYSTICK_3 = 2
-    JOYSTICK_4 = 3
-    JOYSTICK_5 = 4
-    JOYSTICK_6 = 5
-    JOYSTICK_7 = 6
-    JOYSTICK_8 = 7
-    JOYSTICK_9 = 8
-    JOYSTICK_10 = 9
-    JOYSTICK_11 = 10
-    JOYSTICK_12 = 11
-    JOYSTICK_13 = 12
-    JOYSTICK_14 = 13
-    JOYSTICK_15 = 14
-    JOYSTICK_16 = 15
-    JOYSTICK_LAST = JOYSTICK_16
+    # @!endgroup
+
+    # @!group Gamepad Buttons
 
     GAMEPAD_BUTTON_A = 0
     GAMEPAD_BUTTON_B = 1
@@ -211,11 +206,14 @@ module RGSS
     GAMEPAD_BUTTON_DPAD_DOWN = 13
     GAMEPAD_BUTTON_DPAD_LEFT = 14
     GAMEPAD_BUTTON_LAST = GAMEPAD_BUTTON_DPAD_LEFT
-
     GAMEPAD_BUTTON_CROSS = GAMEPAD_BUTTON_A
     GAMEPAD_BUTTON_CIRCLE = GAMEPAD_BUTTON_B
     GAMEPAD_BUTTON_SQUARE = GAMEPAD_BUTTON_X
     GAMEPAD_BUTTON_TRIANGLE = GAMEPAD_BUTTON_Y
+
+    # @!endgroup
+
+    # @!group Gamepad Axes
 
     GAMEPAD_AXIS_LEFT_X = 0
     GAMEPAD_AXIS_LEFT_Y = 1
@@ -225,43 +223,7 @@ module RGSS
     GAMEPAD_AXIS_RIGHT_TRIGGER = 5
     GAMEPAD_AXIS_LAST = GAMEPAD_AXIS_RIGHT_TRIGGER
 
+    # @!endgroup
+
   end
-
-
-  module Graphics
-
-    def self.fps
-    end
-
-    def self.render
-    end
-  end
-
-  module Game
-
-    class << self
-
-      attr_accessor :title
-      attr_accessor :fullscreen
-    end
-
-    def self.init
-    end
-
-    def self.create(width, height, title, **opts)
-    end
-
-    def self.center
-    end
-
-    def self.close(flag = true)
-    end
-
-    def self.closing?
-    end
-
-    def self.terminate
-    end
-  end
-
 end

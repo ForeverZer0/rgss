@@ -5,11 +5,6 @@
 #define VERTICES_STRIDE (SIZEOF_FLOAT * 4)
 #define INDICES_COUNT   6
 
-ID RGSS_ID_UPDATE_VERTICES;
-ID RGSS_ID_BATCH;
-ID RGSS_ID_RENDER;
-ID RGSS_ID_SEND;
-
 #define RGSS_SHADER RGSS_GAME.graphics.shader
 
 VALUE rb_cEntity;
@@ -61,7 +56,7 @@ static inline void RGSS_Entity_ParseArg(VALUE value, vec3 result)
     }
 
     result[2] = 0.0f;
-    if (rb_obj_is_kind_of(value, rb_cPoint) == Qtrue || rb_obj_is_kind_of(value, rb_cSize) == Qtrue)
+    if (rb_obj_is_kind_of(value, rb_cIVec2) == Qtrue)
     {
         int *ivec = DATA_PTR(value);
         result[0] = (float)ivec[0];
@@ -189,6 +184,8 @@ static VALUE RGSS_Entity_SetLocation(VALUE self, VALUE point)
 static VALUE RGSS_Entity_Update(VALUE self, VALUE delta)
 {
     RGSS_Entity *entity = DATA_PTR(self);
+
+    // TODO: Set flag, only change when necessary?
 
     vec3 scale;
     glm_vec3_mul(entity->scale, entity->size, scale);
@@ -399,6 +396,17 @@ static VALUE RGSS_Entity_SetHeight(VALUE self, VALUE value)
     return value;
 }
 
+static void RGSS_Renderable_Free(void *data)
+{
+    if (data)
+    {
+        RGSS_Renderable *obj = data;
+        if (obj->entity.model)
+            free(obj->entity.model);
+        xfree(data);
+    }
+}
+
 static void RGSS_Renderable_Mark(void *data)
 {
     RGSS_Renderable *obj = data;
@@ -410,7 +418,7 @@ static VALUE RGSS_Renderable_Alloc(VALUE klass)
     RGSS_Renderable *obj = ALLOC(RGSS_Renderable);
     memset(obj, 0, sizeof(RGSS_Renderable));
     RGSS_Enity_Init(&obj->entity);
-    return Data_Wrap_Struct(klass, RGSS_Renderable_Mark, RUBY_DEFAULT_FREE, obj);
+    return Data_Wrap_Struct(klass, RGSS_Renderable_Mark, RGSS_Renderable_Free, obj);
 }
 
 static VALUE RGSS_Renderable_Initialize(VALUE self, VALUE parent)
@@ -441,7 +449,7 @@ static VALUE RGSS_Renderable_Initialize(VALUE self, VALUE parent)
     RGSS_Batch_Add(parent, self);
 
 
-    // TODO Accept kwargs 
+    // TODO Accept kwargs?
 
     return self;
 }
@@ -504,9 +512,7 @@ static VALUE RGSS_Renderable_Update(VALUE self, VALUE delta)
 static VALUE RGSS_Renderable_GetColor(VALUE self)
 {
     RGSS_Renderable *obj = DATA_PTR(self);
-    float *color = RGSS_VEC4_NEW;
-    glm_vec4_copy(obj->color, color);
-    return Data_Wrap_Struct(rb_cColor, NULL, free, color);
+    return Data_Wrap_Struct(rb_cColor, NULL, RUBY_NEVER_FREE, &obj->color);
 }
 
 static VALUE RGSS_Renderable_SetColor(VALUE self, VALUE color)
@@ -527,9 +533,7 @@ static VALUE RGSS_Renderable_SetColor(VALUE self, VALUE color)
 static VALUE RGSS_Renderable_GetFlashColor(VALUE self)
 {
     RGSS_Renderable *obj = DATA_PTR(self);
-    float *color = RGSS_VEC4_NEW;
-    glm_vec4_copy(obj->flash_color, color);
-    return Data_Wrap_Struct(rb_cColor, NULL, free, color);
+    return Data_Wrap_Struct(rb_cColor, NULL, RUBY_NEVER_FREE, &obj->flash_color);
 }
 
 static VALUE RGSS_Renderable_SetFlashColor(VALUE self, VALUE color)
@@ -550,9 +554,7 @@ static VALUE RGSS_Renderable_SetFlashColor(VALUE self, VALUE color)
 static VALUE RGSS_Renderable_GetTone(VALUE self)
 {
     RGSS_Renderable *obj = DATA_PTR(self);
-    float *tone = RGSS_VEC4_NEW;
-    glm_vec4_copy(obj->tone, tone);
-    return Data_Wrap_Struct(rb_cTone, NULL, free, tone);
+    return Data_Wrap_Struct(rb_cTone, NULL, RUBY_NEVER_FREE, &obj->tone);
 }
 
 static VALUE RGSS_Renderable_SetTone(VALUE self, VALUE tone)
@@ -798,23 +800,24 @@ static VALUE RGSS_Sprite_UpdateVertices(VALUE self)
     if (tex == NULL)
         return Qnil;
 
-    GLfloat l = (GLfloat) sprite->src_rect.x / (GLfloat) tex->width;
-    GLfloat t = (GLfloat) sprite->src_rect.y / (GLfloat) tex->height;
-    GLfloat r = (GLfloat) sprite->src_rect.width / (GLfloat) tex->width;
-    GLfloat b = (GLfloat) sprite->src_rect.height / (GLfloat) tex->height;
+    GLfloat l, t, r, b, temp;
+    l = (GLfloat) sprite->src_rect.x / (GLfloat) tex->width;
+    t = (GLfloat) sprite->src_rect.y / (GLfloat) tex->height;
+    r = (GLfloat) sprite->src_rect.width / (GLfloat) tex->width;
+    b = (GLfloat) sprite->src_rect.height / (GLfloat) tex->height;
 
     if (RGSS_HAS_FLAG(sprite->base.flip, RGSS_FLIP_X))
     {
-        GLfloat temp_l = l;
+        temp = l;
         l = r;
-        r = temp_l;
+        r = temp;
     }
 
     if (RGSS_HAS_FLAG(sprite->base.flip, RGSS_FLIP_Y))
     {
-        GLfloat temp_t = t;
+        temp = t;
         t = b;
-        b = temp_t;
+        b = temp;
     }
 
     GLfloat vertices[VERTICES_COUNT] =
@@ -923,7 +926,7 @@ static VALUE RGSS_Sprite_Alloc(VALUE klass)
     RGSS_Enity_Init(&sprite->base.entity);
     sprite->texture = Qnil;
     sprite->texture = Qnil;
-    return Data_Wrap_Struct(klass, RGSS_Sprite_Mark, RUBY_DEFAULT_FREE, sprite);
+    return Data_Wrap_Struct(klass, RGSS_Sprite_Mark, RGSS_Renderable_Free, sprite);
 }
 
 static VALUE RGSS_Sprite_Render(VALUE self, VALUE alpha)
@@ -932,7 +935,6 @@ static VALUE RGSS_Sprite_Render(VALUE self, VALUE alpha)
     if (NIL_P(sprite->texture) || !sprite->base.visible || sprite->base.opacity < FLT_EPSILON)
         return Qnil;
 
-    
     rb_call_super(1, &alpha);
 
     RGSS_Texture *tex = DATA_PTR(sprite->texture);
@@ -967,20 +969,9 @@ static VALUE RGSS_Blend_Initialize(VALUE self, VALUE op, VALUE src, VALUE dst)
     return self;
 }
 
-static VALUE RGSS_Blend_GetOp(VALUE self)
-{
-    return INT2NUM(((RGSS_Blend *)DATA_PTR(self))->op);
-}
-
-static VALUE RGSS_Blend_GetSrc(VALUE self)
-{
-    return INT2NUM(((RGSS_Blend *)DATA_PTR(self))->src);
-}
-
-static VALUE RGSS_Blend_GetDst(VALUE self)
-{
-    return INT2NUM(((RGSS_Blend *)DATA_PTR(self))->dst);
-}
+ATTR_ACCESSOR(RGSS_Blend, Op, op, INT2NUM, NUM2INT)
+ATTR_ACCESSOR(RGSS_Blend, Src, src, INT2NUM, NUM2INT)
+ATTR_ACCESSOR(RGSS_Blend, Dst, dst, INT2NUM, NUM2INT)
 
 static VALUE RGSS_Blend_Equal(VALUE self, VALUE other)
 {
@@ -1007,6 +998,8 @@ static void RGSS_Viewport_Free(void *data)
 {
     RGSS_Viewport *vp = data;
     vec_deinit(&vp->batch.items);
+    if (vp->base.entity.model)
+        xfree(vp->base.entity.model);
     xfree(data);
 }
 
@@ -1065,10 +1058,7 @@ static VALUE RGSS_Viewport_Initialize(int argc, VALUE *argv, VALUE self)
         default: rb_raise(rb_eArgError, "wrong number of arguments (given %d, expected 0, 1, 2, or 4)");
     }
 
-    if (rect.width < 1)
-        rb_raise(rb_eArgError, "width must be greater than 0 (given %d)", rect.width);
-    if (rect.height < 1)
-        rb_raise(rb_eArgError, "height must be greater than 0 (given %d)", rect.height);
+    RGSS_SizeNotEmpty(rect.width, rect.height);
     
     RGSS_Viewport *vp = DATA_PTR(self);
     vp->base.entity.position[0] = rect.x;
@@ -1216,7 +1206,7 @@ static VALUE RGSS_Plane_Alloc(VALUE klass)
     RGSS_Enity_Init(&plane->base.entity);
     plane->texture = Qnil;
     plane->viewport = Qnil;
-    return Data_Wrap_Struct(klass, RGSS_Plane_Mark, RUBY_DEFAULT_FREE, plane);
+    return Data_Wrap_Struct(klass, RGSS_Plane_Mark, RGSS_Renderable_Free, plane);
 }
 
 static VALUE RGSS_Plane_Dispose(VALUE self)
@@ -1239,23 +1229,39 @@ static VALUE RGSS_Plane_UpdateVertices(VALUE self)
         return Qnil;
 
     GLfloat l, t, r, b;
-    l = (plane->origin[0] / plane->base.entity.size[0]) * plane->zoom[0];
-    t = (plane->origin[1] / plane->base.entity.size[1]) * plane->zoom[1];
-    r = l + ((plane->base.entity.size[0] / (GLfloat) tex->width) * plane->zoom[0]);
-    b = t + ((plane->base.entity.size[1] / (GLfloat) tex->width) * plane->zoom[1]);
 
-    if (RGSS_HAS_FLAG(plane->base.flip, RGSS_FLIP_X))
+    if (glm_eq(plane->base.entity.size[0], 0.0f))
     {
-        GLfloat temp_l = l;
-        l = r;
-        r = temp_l;
+        l = 0.0f;
+        r = 0.0f;
+    }
+    else
+    {
+        l = (plane->origin[0] / plane->base.entity.size[0]) * plane->zoom[0];
+        r = l + ((plane->base.entity.size[0] / (GLfloat) tex->width) * plane->zoom[0]);
+        if (RGSS_HAS_FLAG(plane->base.flip, RGSS_FLIP_X))
+        {
+            GLfloat temp_l = l;
+            l = r;
+            r = temp_l;
+        }
     }
 
-    if (RGSS_HAS_FLAG(plane->base.flip, RGSS_FLIP_Y))
+    if (glm_eq(plane->base.entity.size[1], 0.0f))
     {
-        GLfloat temp_t = t;
-        t = b;
-        b = temp_t;
+        t = 0.0f;
+        b = 0.0f;
+    }
+    else
+    {
+        t = (plane->origin[1] / plane->base.entity.size[1]) * plane->zoom[1];
+        b = t + ((plane->base.entity.size[1] / (GLfloat) tex->width) * plane->zoom[1]);
+        if (RGSS_HAS_FLAG(plane->base.flip, RGSS_FLIP_Y))
+        {
+            GLfloat temp_t = t;
+            t = b;
+            b = temp_t;
+        }
     }
 
     GLfloat vertices[VERTICES_COUNT] =
@@ -1352,13 +1358,13 @@ static VALUE RGSS_Plane_SetZoom(VALUE self, VALUE value)
     return value;
 }
 
-static VALUE RGSS_Plane_GetScoll(VALUE self)
+static VALUE RGSS_Plane_GetScroll(VALUE self)
 {
     RGSS_Plane *plane = DATA_PTR(self);
     return RGSS_Vec2_New(plane->scroll[0], plane->scroll[1]);
 }
 
-static VALUE RGSS_Plane_SetScoll(VALUE self, VALUE value)
+static VALUE RGSS_Plane_SetScroll(VALUE self, VALUE value)
 {
     RGSS_Plane *plane = DATA_PTR(self);
     if (rb_obj_is_kind_of(value, rb_cVec2))
@@ -1389,38 +1395,6 @@ static VALUE RGSS_Plane_SetOrigin(VALUE self, VALUE value)
     {
         glm_vec2_zero(plane->origin);
     }
-    return value;
-}
-
-static VALUE RGSS_Plane_SetSize(VALUE self, VALUE size)
-{
-    RGSS_Size *s = DATA_PTR(size);
-    if (s->width < 1)
-        rb_raise(rb_eArgError, "width must be greater than 0 (given %d)", s->width);
-    if (s->height < 1)
-        rb_raise(rb_eArgError, "height must be greater than 0 (given %d)", s->height);
-
-    rb_call_super(1, &size);
-    return size;
-}
-
-static VALUE RGSS_Plane_SetWidth(VALUE self, VALUE value)
-{
-    int i = NUM2INT(value);
-    if (i < 1)
-        rb_raise(rb_eArgError, "width must be greater than 0 (given %d)", i);
-
-    rb_call_super(1, &value);
-    return value;
-}
-
-static VALUE RGSS_Plane_SetHeight(VALUE self, VALUE value)
-{
-    int i = NUM2INT(value);
-    if (i < 1)
-        rb_raise(rb_eArgError, "height must be greater than 0 (given %d)", i);
-        
-    rb_call_super(1, &value);
     return value;
 }
 
@@ -1463,29 +1437,20 @@ void RGSS_Init_Entity(VALUE parent)
 {
     rb_cEntity = rb_define_class_under(parent, "Entity", rb_cObject);
     rb_define_alloc_func(rb_cEntity, RGSS_Entity_Alloc);
+
+    DEFINE_ACCESSOR(rb_cEntity, RGSS_Entity, Model, "model");
+    DEFINE_ACCESSOR(rb_cEntity, RGSS_Entity, Position, "position");
+    DEFINE_ACCESSOR(rb_cEntity, RGSS_Entity, Velocity, "velocity");
+    DEFINE_ACCESSOR(rb_cEntity, RGSS_Entity, Scale, "scale");
+    DEFINE_ACCESSOR(rb_cEntity, RGSS_Entity, Pivot, "pivot");
+    DEFINE_ACCESSOR(rb_cEntity, RGSS_Entity, Angle, "angle");
+    DEFINE_ACCESSOR(rb_cEntity, RGSS_Entity, X, "x");
+    DEFINE_ACCESSOR(rb_cEntity, RGSS_Entity, Y, "y");
+    DEFINE_ACCESSOR(rb_cEntity, RGSS_Entity, Z, "z");
+    DEFINE_ACCESSOR(rb_cEntity, RGSS_Entity, Location, "location");
     rb_define_method1(rb_cEntity, "update", RGSS_Entity_Update, 1);
-    rb_define_method0(rb_cEntity, "model", RGSS_Entity_GetModel, 0);
-    rb_define_method1(rb_cEntity, "model=", RGSS_Entity_SetModel, 1);
-    rb_define_method0(rb_cEntity, "position", RGSS_Entity_GetPosition, 0);
-    rb_define_method1(rb_cEntity, "position=", RGSS_Entity_SetPosition, 1);
-    rb_define_method0(rb_cEntity, "velocity", RGSS_Entity_GetVelocity, 0);
-    rb_define_method1(rb_cEntity, "velocity=", RGSS_Entity_SetVelocity, 1);
-    rb_define_method0(rb_cEntity, "scale", RGSS_Entity_GetScale, 0);
-    rb_define_method1(rb_cEntity, "scale=", RGSS_Entity_SetScale, 1);
-    rb_define_method0(rb_cEntity, "pivot", RGSS_Entity_GetPivot, 0);
-    rb_define_method1(rb_cEntity, "pivot=", RGSS_Entity_SetPivot, 1);
-    rb_define_method0(rb_cEntity, "angle", RGSS_Entity_GetAngle, 0);
-    rb_define_method1(rb_cEntity, "angle=", RGSS_Entity_SetAngle, 1);
     rb_define_method0(rb_cEntity, "bounds", RGSS_Entity_GetBounds, 0);
     rb_define_methodm1(rb_cEntity, "rotate", RGSS_Entity_Rotate, -1);
-    rb_define_method0(rb_cEntity, "x", RGSS_Entity_GetX, 0);
-    rb_define_method1(rb_cEntity, "x=", RGSS_Entity_SetX, 1);
-    rb_define_method0(rb_cEntity, "y", RGSS_Entity_GetY, 0);
-    rb_define_method1(rb_cEntity, "y=", RGSS_Entity_SetY, 1);
-    rb_define_method0(rb_cEntity, "z", RGSS_Entity_GetZ, 0);
-    rb_define_method1(rb_cEntity, "z=", RGSS_Entity_SetZ, 1);
-    rb_define_method0(rb_cEntity, "location", RGSS_Entity_GetLocation, 0);
-    rb_define_method1(rb_cEntity, "location=", RGSS_Entity_SetLocation, 1);
     rb_define_method0(rb_cEntity, "size", RGSS_Entity_GetSize, 0);
     rb_define_method0(rb_cEntity, "width", RGSS_Entity_GetWidth, 0);
     rb_define_method0(rb_cEntity, "height", RGSS_Entity_GetHeight, 0);
@@ -1496,30 +1461,21 @@ void RGSS_Init_Entity(VALUE parent)
 
     rb_cRenderable = rb_define_class_under(parent, "Renderable", rb_cEntity);
     rb_define_alloc_func(rb_cRenderable, RGSS_Renderable_Alloc);
+    DEFINE_ACCESSOR(rb_cRenderable, RGSS_Renderable, Color, "color");
+    DEFINE_ACCESSOR(rb_cRenderable, RGSS_Renderable, FlashColor, "flash_color");
+    DEFINE_ACCESSOR(rb_cRenderable, RGSS_Renderable, FlashDuration, "flash_duration");
+    DEFINE_ACCESSOR(rb_cRenderable, RGSS_Renderable, Tone, "tone");
+    DEFINE_ACCESSOR(rb_cRenderable, RGSS_Renderable, Opacity, "opacity");
+    DEFINE_ACCESSOR(rb_cRenderable, RGSS_Renderable, Hue, "hue");
+    DEFINE_ACCESSOR(rb_cRenderable, RGSS_Renderable, Visible, "visible");
+    DEFINE_ACCESSOR(rb_cRenderable, RGSS_Renderable, Blend, "blend");
+    DEFINE_ACCESSOR(rb_cRenderable, RGSS_Renderable, Flip, "flip");
     rb_define_method1(rb_cRenderable, "initialize", RGSS_Renderable_Initialize, 1);
     rb_define_method1(rb_cRenderable, "update", RGSS_Renderable_Update, 1);
     rb_define_method0(rb_cRenderable, "dispose", RGSS_Renderable_Dispose, 0);
     rb_define_method0(rb_cRenderable, "disposed?", RGSS_Renderable_IsDisposed, 0);
-    rb_define_method0(rb_cRenderable, "color", RGSS_Renderable_GetColor, 0);
-    rb_define_method1(rb_cRenderable, "color=", RGSS_Renderable_SetColor, 1);
-    rb_define_method0(rb_cRenderable, "flash_color", RGSS_Renderable_GetFlashColor, 0);
-    rb_define_method1(rb_cRenderable, "flash_color=", RGSS_Renderable_SetFlashColor, 1);
-    rb_define_method0(rb_cRenderable, "flash_duration", RGSS_Renderable_GetFlashDuration, 0);
-    rb_define_method1(rb_cRenderable, "flash_duration=", RGSS_Renderable_SetFlashDuration, 1);
-    rb_define_method0(rb_cRenderable, "tone", RGSS_Renderable_GetTone, 0);
-    rb_define_method1(rb_cRenderable, "tone=", RGSS_Renderable_SetTone, 1);
-    rb_define_method0(rb_cRenderable, "opacity", RGSS_Renderable_GetOpacity, 0);
-    rb_define_method1(rb_cRenderable, "opacity=", RGSS_Renderable_SetOpacity, 1);
-    rb_define_method0(rb_cRenderable, "hue", RGSS_Renderable_GetHue, 0);
-    rb_define_method1(rb_cRenderable, "hue=", RGSS_Renderable_SetHue, 1);
-    rb_define_method0(rb_cRenderable, "visible", RGSS_Renderable_GetVisible, 0);
-    rb_define_method1(rb_cRenderable, "visible=", RGSS_Renderable_SetVisible, 1);
     rb_define_method2(rb_cRenderable, "flash", RGSS_Renderable_Flash, 2);
     rb_define_method0(rb_cRenderable, "flashing?", RGSS_Renderable_IsFlashing, 0);
-    rb_define_method0(rb_cRenderable, "blend", RGSS_Renderable_GetBlend, 0);
-    rb_define_method1(rb_cRenderable, "blend=", RGSS_Renderable_SetBlend, 1);
-    rb_define_method0(rb_cRenderable, "flip",  RGSS_Renderable_GetFlip, 0);
-    rb_define_method1(rb_cRenderable, "flip=", RGSS_Renderable_SetFlip, 1);
     rb_define_method1(rb_cRenderable, "z=", RGSS_Renderable_SetDepth, 1);
     rb_define_method1(rb_cRenderable, "render", RGSS_Renderable_Render, 1);
     rb_define_protected_method0(rb_cRenderable, "parent", RGSS_Renderable_GetParent, 0);
@@ -1542,9 +1498,9 @@ void RGSS_Init_Entity(VALUE parent)
     rb_cBlend = rb_define_class_under(parent, "Blend", rb_cObject);
     rb_define_alloc_func(rb_cBlend, RGSS_Blend_Alloc);
     rb_define_method3(rb_cBlend, "initialize", RGSS_Blend_Initialize, 3);
-    rb_define_method0(rb_cBlend, "op", RGSS_Blend_GetOp, 0);
-    rb_define_method0(rb_cBlend, "src", RGSS_Blend_GetSrc, 0);
-    rb_define_method0(rb_cBlend, "dst", RGSS_Blend_GetDst, 0);
+    DEFINE_ACCESSOR(rb_cBlend, RGSS_Blend, Op, "op");
+    DEFINE_ACCESSOR(rb_cBlend, RGSS_Blend, Src, "src");
+    DEFINE_ACCESSOR(rb_cBlend, RGSS_Blend, Dst, "dst");
     rb_define_method1(rb_cBlend, "==", RGSS_Blend_Equal, 1);
     rb_define_method1(rb_cBlend, "eql?", RGSS_Blend_Equal, 1);
 
@@ -1552,10 +1508,8 @@ void RGSS_Init_Entity(VALUE parent)
     rb_define_alloc_func(rb_cSprite, RGSS_Sprite_Alloc);
     rb_define_methodm1(rb_cSprite, "initialize", RGSS_Sprite_Initialize, -1);
     rb_define_method0(rb_cSprite, "viewport", RGSS_Sprite_GetViewport, 0);
-    rb_define_method0(rb_cSprite, "src_rect", RGSS_Sprite_GetSrcRect, 0);
-    rb_define_method1(rb_cSprite, "src_rect=", RGSS_Sprite_SetSrcRect, 1);
-    rb_define_method0(rb_cSprite, "texture", RGSS_Sprite_GetTexture, 0);
-    rb_define_method1(rb_cSprite, "texture=", RGSS_Sprite_SetTexture, 1);
+    DEFINE_ACCESSOR(rb_cSprite, RGSS_Sprite, SrcRect, "src_rect");
+    DEFINE_ACCESSOR(rb_cSprite, RGSS_Sprite, Texture, "texture");
     rb_define_method1(rb_cSprite, "render", RGSS_Sprite_Render, 1);
     rb_define_protected_method0(rb_cSprite, "update_vertices", RGSS_Sprite_UpdateVertices, 0);
 
@@ -1565,26 +1519,22 @@ void RGSS_Init_Entity(VALUE parent)
     rb_define_method1(rb_cViewport, "render", RGSS_Viewport_Render, 1);
     rb_define_protected_method0(rb_cViewport, "batch", RGSS_Viewport_GetBatch, 0);
     rb_define_method0(rb_cViewport, "dispose", RGSS_Viewport_Dispose, 0);
-    rb_define_method0(rb_cViewport, "back_color", RGSS_Viewport_GetBackColor, 0);
-    rb_define_method1(rb_cViewport, "back_color=", RGSS_Viewport_SetBackColor, 1);
+    DEFINE_ACCESSOR(rb_cViewport, RGSS_Viewport, BackColor, "back_color");
 
     rb_cPlane = rb_define_class_under(parent, "Plane", rb_cRenderable);
     rb_define_alloc_func(rb_cPlane, RGSS_Plane_Alloc);
     rb_define_method0(rb_cPlane, "dispose", RGSS_Plane_Dispose, 0);
     rb_define_methodm1(rb_cPlane, "initialize", RGSS_Plane_Initialize, -1);
-    rb_define_method0(rb_cPlane, "zoom",  RGSS_Plane_GetZoom, 0);
-    rb_define_method1(rb_cPlane, "zoom=", RGSS_Plane_SetZoom, 1);
-    rb_define_method0(rb_cPlane, "scroll",  RGSS_Plane_GetScoll, 0);
-    rb_define_method1(rb_cPlane, "scroll=", RGSS_Plane_SetScoll, 1);
-    rb_define_method0(rb_cPlane, "origin",  RGSS_Plane_GetOrigin, 0);
-    rb_define_method1(rb_cPlane, "origin=", RGSS_Plane_SetOrigin, 1);
-    rb_define_method1(rb_cPlane, "size=", RGSS_Plane_SetSize, 1);
-    rb_define_method1(rb_cPlane, "width=", RGSS_Plane_SetWidth, 1);
-    rb_define_method1(rb_cPlane, "height=", RGSS_Plane_SetHeight, 1);
+    DEFINE_ACCESSOR(rb_cPlane, RGSS_Plane, Zoom, "zoom");
+    DEFINE_ACCESSOR(rb_cPlane, RGSS_Plane, Scroll, "scroll");
+    DEFINE_ACCESSOR(rb_cPlane, RGSS_Plane, Origin, "origin");
+    DEFINE_ACCESSOR(rb_cPlane, RGSS_Plane, Texture, "texture");
     rb_define_method1(rb_cPlane, "update", RGSS_Plane_Update, 1);
-    rb_define_method0(rb_cPlane, "texture",  RGSS_Plane_GetTexture, 0);
-    rb_define_method1(rb_cPlane, "texture=", RGSS_Plane_SetTexture, 1);
     rb_define_method1(rb_cPlane, "render", RGSS_Plane_Render, 1);
+    // Redefine as public
+    rb_define_method1(rb_cPlane, "size=", RGSS_Entity_SetSize, 1);
+    rb_define_method1(rb_cPlane, "width=", RGSS_Entity_SetWidth, 1);
+    rb_define_method1(rb_cPlane, "height=", RGSS_Entity_SetHeight, 1);
     rb_define_protected_method0(rb_cPlane, "update_vertices", RGSS_Plane_UpdateVertices, 0);
 
 
@@ -1596,11 +1546,7 @@ void RGSS_Init_Entity(VALUE parent)
     b->dst = GL_ONE_MINUS_SRC_ALPHA;
     rb_define_const(rb_cBlend, "DEFAULT", Data_Wrap_Struct(rb_cBlend, NULL, RUBY_DEFAULT_FREE, b));
 
-
-    RGSS_ID_UPDATE_VERTICES = rb_intern("update_vertices");
-    RGSS_ID_BATCH = rb_intern("batch");
-    RGSS_ID_RENDER = rb_intern("render");
-    RGSS_ID_SEND = rb_intern("send");
-
+    rb_undef(rb_cViewport, rb_intern("width="));
+    rb_undef(rb_cViewport, rb_intern("height="));
     rb_undef(rb_cViewport, rb_intern("size="));
 }

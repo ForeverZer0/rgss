@@ -1,14 +1,8 @@
 #include "game.h"
-#include "glad.h"
+#include "graphics.h"
 
 VALUE rb_mGraphics;
 VALUE rb_cShader;
-ID render_id;
-
-typedef struct
-{
-    GLuint id;
-} RGSS_Shader;
 
 #define GL_DEBUG_OUTPUT_SYNCHRONOUS 0x8242
 
@@ -50,15 +44,9 @@ void RGSS_Graphics_GLCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 #define RGSS_VIEWPORT(rect)                                                                                            \
     glViewport(rect.x, rect.y, rect.width, rect.height);                                                               \
     glScissor(rect.x, rect.y, rect.width, rect.height)
+#define RGSS_CLEAR_COLOR(c) glClearColor(c[0], c[1], c[2], c[3])
 
-static VALUE RGSS_Shader_Alloc(VALUE klass)
-{
-    RGSS_Shader *shader = ALLOC(RGSS_Shader);
-    memset(shader, 0, sizeof(RGSS_Shader));
-    return Data_Wrap_Struct(klass, NULL, RUBY_DEFAULT_FREE, shader);
-}
-
-static GLuint RGSS_Shader_CreateUnit(const char *source, GLenum type)
+GLuint RGSS_CreateShader(const char *source, GLenum type)
 {
     if (source == NULL)
         rb_raise(rb_eArgError, "shader source cannot be nil");
@@ -80,49 +68,79 @@ static GLuint RGSS_Shader_CreateUnit(const char *source, GLenum type)
     rb_raise(rb_eRuntimeError, "failed to compile shader: %s", buffer);
 }
 
-static void RGSS_Shader_CreateProgram(const char *v_src, const char *f_src, const char *g_src, RGSS_Shader *shader)
+GLuint RGSS_CreateShaderFromFile(const char *filename, GLenum type)
 {
-    shader->id = glCreateProgram();
+    char *source = RGSS_ReadFileText(filename);
+    GLuint shader = RGSS_CreateShader(source, type);
+    xfree(source);
+    return shader;
+}
 
-    GLuint v, f, g;
-    v = RGSS_Shader_CreateUnit(v_src, GL_VERTEX_SHADER);
-    f = RGSS_Shader_CreateUnit(f_src, GL_FRAGMENT_SHADER);
-    g = g_src == NULL ? 0 : RGSS_Shader_CreateUnit(g_src, GL_GEOMETRY_SHADER);
+GLuint RGSS_CreateProgram(GLuint vertex, GLuint fragment, GLuint geometry)
+{
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertex);
+    glAttachShader(program, fragment);
+    if (geometry != GL_NONE)
+        glAttachShader(program, geometry);
 
-    glAttachShader(shader->id, v);
-    glAttachShader(shader->id, f);
-    if (g > 0)
-        glAttachShader(shader->id, g);
+    glLinkProgram(program);
+    glDetachShader(program, vertex);
+    glDetachShader(program, fragment);
+    if (geometry != GL_NONE)
+        glDetachShader(program, geometry);
 
-    glLinkProgram(shader->id);
-
-    glDetachShader(shader->id, v);
-    glDeleteShader(v);
-    glDetachShader(shader->id, f);
-    glDeleteShader(f);
-    if (g > 0)
+    GLint status;
+    glGetProgramiv(program, GL_LINK_STATUS, &status);
+    if (status != GL_TRUE)
     {
-        glDetachShader(shader->id, g);
-        glDeleteShader(g);
+        GLint length;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
+        char buffer[length];
+
+        glGetProgramInfoLog(program, length, NULL, buffer);
+        glDeleteProgram(program);
+        rb_raise(rb_eRGSSError, "failed to link shader program: %s", buffer);
     }
 
-    GLint i;
-    glGetProgramiv(shader->id, GL_LINK_STATUS, &i);
-    if (i != GL_TRUE)
-    {
-        glGetProgramiv(shader->id, GL_INFO_LOG_LENGTH, &i);
-        char buffer[i];
-
-        glGetProgramInfoLog(shader->id, i, NULL, buffer);
-        glDeleteProgram(shader->id);
-        shader->id = 0;
-
-        rb_raise(rb_eRuntimeError, "failed to link shader program: %s", buffer);
-    }
-
-    GLint index = glGetUniformBlockIndex(shader->id, "ortho");
+    GLint index = glGetUniformBlockIndex(program, "ortho");
     if (index != GL_INVALID_INDEX)
-        glUniformBlockBinding(shader->id, index, 0);
+        glUniformBlockBinding(program, index, 0);
+
+    return program;
+}
+
+GLuint RGSS_CreateProgramFromSource(const char *vert_src, const char *frag_src, const char *geom_src)
+{
+    GLuint vert = RGSS_CreateShader(vert_src, GL_VERTEX_SHADER);
+    GLuint frag = RGSS_CreateShader(frag_src, GL_FRAGMENT_SHADER);
+    GLuint geom = geom_src ? RGSS_CreateShader(geom_src, GL_GEOMETRY_SHADER) : GL_NONE;
+    GLuint program = RGSS_CreateProgram(vert, frag, geom);
+
+    glDeleteShader(vert);
+    glDeleteShader(frag);
+    glDeleteShader(geom);
+    return program;
+}
+
+GLuint RGSS_CreateProgramFromFile(const char *vert_path, const char *frag_path, const char *geom_path)
+{
+    char *vert = RGSS_ReadFileText(vert_path);
+    char *frag = RGSS_ReadFileText(frag_path);
+    char *geom = geom_path ? RGSS_ReadFileText(geom_path) : NULL;
+    GLuint program = RGSS_CreateProgramFromSource(vert, frag, geom);
+
+    xfree(vert);
+    xfree(geom);
+    if (geom)
+        xfree(geom);
+
+    return program;
+}
+
+static VALUE RGSS_Shader_Alloc(VALUE klass)
+{
+    return Data_Wrap_Struct(klass, NULL, RUBY_NEVER_FREE, NULL);
 }
 
 static VALUE RGSS_Shader_Load(int argc, VALUE *argv, VALUE klass)
@@ -130,20 +148,15 @@ static VALUE RGSS_Shader_Load(int argc, VALUE *argv, VALUE klass)
     VALUE v, f, g;
     rb_scan_args(argc, argv, "21", &v, &f, &g);
 
-    char *vert = RGSS_FileRead(v);
-    char *frag = RGSS_FileRead(f);
-    char *geom = RTEST(g) ? RGSS_FileRead(g) : NULL;
+    char *vert_path = StringValueCStr(v);
+    char *frag_path = StringValueCStr(f);
+    char *geom_path = RTEST(g) ? StringValueCStr(g) : NULL;
 
-    RGSS_Shader *shader = ALLOC(RGSS_Shader);
-    memset(shader, 0, sizeof(RGSS_Shader));
+    GLuint program = RGSS_CreateProgramFromFile(vert_path, frag_path, geom_path);
+    if (program == GL_NONE)
+        rb_raise(rb_eRGSSError, "failed to create shader program");
 
-    RGSS_Shader_CreateProgram(vert, frag, geom, shader);
-    xfree(vert);
-    xfree(frag);
-    if (geom != NULL)
-        xfree(geom);
-
-    return Data_Wrap_Struct(klass, NULL, RUBY_DEFAULT_FREE, shader);
+    return RGSS_SHADER_WRAP_CLASS(klass, program);
 }
 
 static VALUE RGSS_Shader_Initialize(int argc, VALUE *argv, VALUE self)
@@ -151,80 +164,99 @@ static VALUE RGSS_Shader_Initialize(int argc, VALUE *argv, VALUE self)
     VALUE v, f, g;
     rb_scan_args(argc, argv, "21", &v, &f, &g);
 
-    RGSS_Shader *shader = DATA_PTR(self);
     char *vert = StringValueCStr(v);
     char *frag = StringValueCStr(f);
     char *geom = RTEST(g) ? StringValueCStr(g) : NULL;
 
-    RGSS_Shader_CreateProgram(vert, frag, geom, shader);
+    GLuint id = RGSS_CreateProgramFromSource(vert, frag, geom);
+    if (id == GL_NONE)
+        rb_raise(rb_eRGSSError, "failed to create shader program");
+
+    RDATA(self)->data = RGSS_SHADER_PTR(id);
     return self;
 }
 
 static VALUE RGSS_Shader_Use(VALUE self)
 {
-    RGSS_Shader *shader = DATA_PTR(self);
-    if (shader->id == GL_NONE)
-        rb_raise(rb_eRuntimeError, "disposed shader program");
-    glUseProgram(shader->id);
+    GLuint id = RGSS_SHADER_UNWRAP(self);
+    RGSS_ASSERT_SHADER(id);
+    glUseProgram(id);
     return self;
 }
 
 static VALUE RGSS_Shader_GetID(VALUE self)
 {
-    RGSS_Shader *shader = DATA_PTR(self);
-    return UINT2NUM(shader->id);
+    return UINT2NUM(RGSS_SHADER_UNWRAP(self));
 }
 
 static VALUE RGSS_Shader_Locate(VALUE self, VALUE uniform)
 {
-    RGSS_Shader *shader = DATA_PTR(self);
     if (uniform == Qnil)
         return INT2NUM(-1);
-    return INT2NUM(glGetUniformLocation(shader->id, StringValueCStr(uniform)));
+    GLuint id = RGSS_SHADER_UNWRAP(self);
+    RGSS_ASSERT_SHADER(id);
+    return INT2NUM(glGetUniformLocation(id, StringValueCStr(uniform)));
 }
 
 static VALUE RGSS_Shader_Dispose(VALUE self)
 {
-    RGSS_Shader *shader = DATA_PTR(self);
-    if (shader->id != GL_NONE)
+    GLuint id = RGSS_SHADER_UNWRAP(self);
+    if (id != GL_NONE)
     {
-        glDeleteProgram(shader->id);
-        shader->id = GL_NONE;
+        glDeleteProgram(id);
+        RDATA(self)->data = NULL;
     }
     return Qnil;
 }
 
 static VALUE RGSS_Shader_IsDisposed(VALUE self)
 {
-    RGSS_Shader *shader = DATA_PTR(self);
-    return RB_BOOL(shader->id == GL_NONE);
+    return RB_BOOL(DATA_PTR(self));
+}
+
+// TODO: Uniform setters
+
+static inline void RGSS_Graphics_SetProjection(mat4 ortho)
+{
+    glBindBuffer(GL_UNIFORM_BUFFER, RGSS_GAME.graphics.ubo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, RGSS_MAT4_SIZE, ortho);
+    glBindBuffer(GL_UNIFORM_BUFFER, GL_NONE);
 }
 
 static void RGSS_Graphics_Reshape(int width, int height)
 {
-    // Calculate ratios between window and internal resolution
-    RGSS_GAME.graphics.ratio[0] = (float)width / RGSS_GAME.graphics.resolution[0];
-    RGSS_GAME.graphics.ratio[1] = (float)height / RGSS_GAME.graphics.resolution[1];
-    float ratio = RGSS_MIN(RGSS_GAME.graphics.ratio[0], RGSS_GAME.graphics.ratio[1]);
+    if (RGSS_GAME.auto_ortho)
+    {
+        // Calculate ratios between window and internal resolution
+        RGSS_GAME.graphics.ratio[0] = (float)width / RGSS_GAME.graphics.resolution[0];
+        RGSS_GAME.graphics.ratio[1] = (float)height / RGSS_GAME.graphics.resolution[1];
+        float ratio = RGSS_MIN(RGSS_GAME.graphics.ratio[0], RGSS_GAME.graphics.ratio[1]);
 
-    // Calculate letterbox/pillar rendering coordinates as required
-    int x, y, w, h;
-    w = (int)roundf(RGSS_GAME.graphics.resolution[0] * ratio);
-    h = (int)roundf(RGSS_GAME.graphics.resolution[1] * ratio);
-    x = (int)roundf(((float)width - RGSS_GAME.graphics.resolution[0] * ratio) * 0.5f);
-    y = (int)roundf(((float)height - RGSS_GAME.graphics.resolution[1] * ratio) * 0.5f);
+        // Calculate letterbox/pillar rendering coordinates as required
+        int x, y, w, h;
+        w = (int)roundf(RGSS_GAME.graphics.resolution[0] * ratio);
+        h = (int)roundf(RGSS_GAME.graphics.resolution[1] * ratio);
+        x = (int)roundf(((float)width - RGSS_GAME.graphics.resolution[0] * ratio) * 0.5f);
+        y = (int)roundf(((float)height - RGSS_GAME.graphics.resolution[1] * ratio) * 0.5f);
 
-    RGSS_GAME.graphics.viewport = (RGSS_Rect){x, y, w, h};
-    glViewport(x, y, w, h);
+        RGSS_GAME.graphics.viewport = (RGSS_Rect){x, y, w, h};
+        glViewport(x, y, w, h);
 
-    // Ensure the clipping area is also cleared
-    glDisable(GL_SCISSOR_TEST);
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(x, y, w, h);
-    glClearColor(RGSS_GAME.graphics.color[0], RGSS_GAME.graphics.color[1], RGSS_GAME.graphics.color[2],
-                 RGSS_GAME.graphics.color[3]);
+        // Ensure the clipping area is also cleared
+        glDisable(GL_SCISSOR_TEST);
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(x, y, w, h);
+        RGSS_CLEAR_COLOR(RGSS_GAME.graphics.color);
+    }
+    else
+    {
+        glm_vec2_one(RGSS_GAME.graphics.ratio);
+        RGSS_GAME.graphics.viewport = (RGSS_Rect){0, 0, width, height};
+        glScissor(0, 0, width, height);
+        glViewport(0, 0, width, height);
+    }
 }
 
 static VALUE RGSS_Graphics_GetFPS(VALUE graphics)
@@ -252,8 +284,7 @@ static VALUE RGSS_Graphics_SetBackColor(VALUE graphics, VALUE color)
     {
         memset(RGSS_GAME.graphics.color, 0, RGSS_VEC4_SIZE);
     }
-    glClearColor(RGSS_GAME.graphics.color[0], RGSS_GAME.graphics.color[1], RGSS_GAME.graphics.color[2],
-                 RGSS_GAME.graphics.color[3]);
+    RGSS_CLEAR_COLOR(RGSS_GAME.graphics.color);
     return color;
 }
 
@@ -271,18 +302,20 @@ static VALUE RGSS_Graphics_Capture(VALUE graphics)
     // glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
     // TODO: Set projection/viewport to graphics size, render, read framebuffer, return image
 
-    GLFWimage *image = xmalloc(sizeof(GLFWimage));
-    image->width = (int)RGSS_GAME.graphics.resolution[0];
-    image->height = (int)RGSS_GAME.graphics.resolution[1];
-    image->pixels = xmalloc(sizeof(int) * image->width * image->height);
+    RGSS_Rect rect = { 0, 0, (int) RGSS_GAME.graphics.resolution[0], (int) RGSS_GAME.graphics.resolution[1] };
+    RGSS_VIEWPORT(rect);
 
-    glViewport(0, 0, image->width, image->height);
-    rb_funcall(graphics, render_id, 1, DBL2NUM(0.0));
+    mat4 ortho;
+    glm_ortho(0.0f, rect.width, rect.height, 0.0, -1.0f, 1.0f, ortho);
+    // TODO: Bind UBO and set projection
 
-    glReadPixels(0, 0, image->width, image->height, GL_RGBA, GL_UNSIGNED_BYTE, image->pixels);
+
+    unsigned char *pixels = xmalloc(sizeof(int) * rect.width * rect.height);
+    rb_funcall(graphics, RGSS_ID_RENDER, 1, DBL2NUM(0.0));
+    glReadPixels(0, 0, rect.width, rect.height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     RGSS_VIEWPORT(RGSS_GAME.graphics.viewport);
 
-    return Data_Wrap_Struct(rb_cImage, NULL, RGSS_Image_Free, image);
+    return RGSS_Image_New(rect.width, rect.height, pixels);
 }
 
 static VALUE RGSS_Graphics_GetResolution(VALUE graphics)
@@ -297,11 +330,7 @@ static VALUE RGSS_Graphics_SetResolution(VALUE graphics, VALUE size)
 {
     RGSS_ASSERT_GAME;
     RGSS_Size *ivec = DATA_PTR(size);
-
-    if (ivec->width < 0)
-        rb_raise(rb_eArgError, "width must be greater than 0 (given %d)", ivec->width);
-    if (ivec->height < 0)
-        rb_raise(rb_eArgError, "height must be greater than 0 (given %d)", ivec->height);
+    RGSS_SizeNotEmpty(ivec->width, ivec->height);
 
     RGSS_GAME.graphics.resolution[0] = (float)ivec->width;
     RGSS_GAME.graphics.resolution[1] = (float)ivec->height;
@@ -326,11 +355,10 @@ VALUE RGSS_Graphics_Restore(VALUE graphics)
 {
     if (RGSS_GAME.window == NULL)
         return Qnil;
-
-    RGSS_VIEWPORT(RGSS_GAME.graphics.viewport);
-    glClearColor(RGSS_GAME.graphics.color[0], RGSS_GAME.graphics.color[1], RGSS_GAME.graphics.color[2],
-                 RGSS_GAME.graphics.color[3]);
+    // TODO: Restore projection?
     glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
+    RGSS_VIEWPORT(RGSS_GAME.graphics.viewport);
+    RGSS_CLEAR_COLOR(RGSS_GAME.graphics.color);
     return Qnil;
 }
 
@@ -371,14 +399,8 @@ void RGSS_Graphics_Init(GLFWwindow *window, int width, int height, int vsync)
     }
 
     vec_init(&RGSS_GAME.graphics.batch.items);
-    
-    VALUE shaders[2];
-    shaders[0] = rb_str_new_cstr(SPRITE_VERT_SRC);
-    shaders[1] = rb_str_new_cstr(SPRITE_FRAG_SRC);
-    VALUE program = RGSS_Shader_Alloc(rb_cShader);
-    RGSS_Shader_Initialize(2, shaders, program);
 
-    GLuint id = ((RGSS_Shader*)DATA_PTR(program))->id;
+    GLuint id = RGSS_CreateProgramFromSource(SPRITE_VERT_SRC, SPRITE_FRAG_SRC, NULL);
     RGSS_GAME.graphics.shader.id = id;
     RGSS_GAME.graphics.shader.model = glGetUniformLocation(id, "model");
     RGSS_GAME.graphics.shader.color = glGetUniformLocation(id, "color");
@@ -415,7 +437,7 @@ void RGSS_Graphics_Render(double alpha)
     int i;
     vec_foreach(&RGSS_GAME.graphics.batch.items, obj, i)
     {
-        rb_funcall2(obj, render_id, 1, &n);
+        rb_funcall2(obj, RGSS_ID_RENDER, 1, &n);
     }
 
     RGSS_GAME.time.fps_count++;
@@ -434,50 +456,44 @@ static VALUE RGSS_Graphics_GetProjection(VALUE graphics)
     return Data_Wrap_Struct(rb_cMat4, NULL, RUBY_NEVER_FREE, RGSS_GAME.graphics.projection);
 }
 
-// static VALUE RGSS_Graphics_SetProjection(VALUE graphics, VALUE projection)
-// {
-//     RGSS_ASSERT_GAME;
-//     if (RTEST(projection))
-//     {
-//         vec4 *mat4 = DATA_PTR(projection);
-//         glm_mat4_copy(mat4, RGSS_GAME.graphics.projection);
-//     }
-//     else
-//     {
-//         glm_mat4_identity(RGSS_GAME.graphics.projection);
-//     }
-//     return projection;
-// }
-
 static VALUE RGSS_Graphics_Project(int argc, VALUE *argv, VALUE graphics)
 {
-    rb_need_block();
-
     VALUE x, y, w, h;
     rb_scan_args(argc, argv, "13", &x, &y, &w, &h);
-    glBindBuffer(GL_UNIFORM_BUFFER, RGSS_GAME.graphics.ubo);
 
     if (argc == 1)
     {
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, RGSS_MAT4_SIZE, DATA_PTR(x));
+        if (NIL_P(x))
+        {
+            mat4 identity;
+            glm_mat4_identity(identity);
+            RGSS_Graphics_SetProjection(identity);
+        }
+        else 
+        {
+            RGSS_Graphics_SetProjection(DATA_PTR(x));
+        }
     }
     else if (argc == 4)
     {
-        mat4 mat;
-        glm_ortho(NUM2FLT(x), NUM2FLT(x + w), NUM2FLT(y), NUM2FLT(y + h), -1.0f, 1.0f, mat);
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, RGSS_MAT4_SIZE, mat);
+        GLfloat l, t, r, b;
+        l = NUM2FLT(x), t = NUM2FLT(y);
+        r = l + NUM2FLT(w), b = t + NUM2FLT(h);
+        mat4 ortho;
+        glm_ortho(l, r, t, b, -1.0f, 1.0f, ortho);
+        RGSS_Graphics_SetProjection(ortho);
     }
     else
     {
         rb_raise(rb_eArgError, "wrong number of arguments (given %d, expected 1 or 4)", argc);
     }
-    glBindBuffer(GL_UNIFORM_BUFFER, GL_NONE);
+    
+    if (rb_block_given_p())
+    {
+        rb_yield(Qundef);
+        RGSS_Graphics_SetProjection(RGSS_GAME.graphics.projection);
+    }
 
-    rb_yield(Qundef);
-
-    glBindBuffer(GL_UNIFORM_BUFFER, RGSS_GAME.graphics.ubo);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, RGSS_MAT4_SIZE, RGSS_GAME.graphics.projection);
-    glBindBuffer(GL_UNIFORM_BUFFER, GL_NONE);
     return Qnil;
 }
 
@@ -493,7 +509,6 @@ static VALUE RGSS_Graphics_GetBatch(VALUE graphics)
     return Data_Wrap_Struct(rb_cBatch, NULL, RUBY_NEVER_FREE, &RGSS_GAME.graphics.batch);
 }
 
-
 void RGSS_Init_Graphics(VALUE parent)
 {
     rb_mGraphics = rb_define_module_under(parent, "Graphics");
@@ -506,11 +521,10 @@ void RGSS_Init_Graphics(VALUE parent)
     rb_define_singleton_method0(rb_mGraphics, "resolution", RGSS_Graphics_GetResolution, 0);
     rb_define_singleton_method1(rb_mGraphics, "resolution=", RGSS_Graphics_SetResolution, 1);
 
+    rb_define_singleton_methodm1(rb_mGraphics, "project", RGSS_Graphics_Project, -1);
     rb_define_singleton_method0(rb_mGraphics, "projection", RGSS_Graphics_GetProjection, 0);
     rb_define_singleton_method0(rb_mGraphics, "ubo", RGSS_Graphics_GetUniformBlock, 0);
-    rb_define_singleton_methodm1(rb_mGraphics, "project", RGSS_Graphics_Project, -1);
     rb_define_singleton_method0(rb_mGraphics, "batch", RGSS_Graphics_GetBatch, 0);
-    // rb_define_singleton_method1(rb_mGraphics, "projection=", RGSS_Graphics_SetProjection, 1);
 
     VALUE singleton = rb_singleton_class(rb_mGraphics);
     rb_define_alias(singleton, "fps", "frame_rate");
@@ -526,5 +540,4 @@ void RGSS_Init_Graphics(VALUE parent)
     rb_include_module(rb_cShader, rb_mGL);
 
     rb_define_singleton_methodm1(rb_cShader, "load", RGSS_Shader_Load, -1);
-    render_id = rb_intern("render");
 }

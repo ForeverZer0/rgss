@@ -2,7 +2,8 @@
 
 VALUE rb_cTable;
 
-typedef struct {
+typedef struct
+{
     int dimensions;
     int width;
     int height;
@@ -11,9 +12,9 @@ typedef struct {
     short *data;
 } RGSS_Table;
 
-#define DATA_OFFSET 20
-#define INDEX_XY(table, x, y) ((x) + ((y) * table->width))
-#define INDEX_XYZ(table, x, y, z) (INDEX_XY(table, x, y) + ((z) * table->width * table->height))
+#define DATA_OFFSET               20
+#define INDEX_XY(table, x, y)     ((x) + ((y)*table->width))
+#define INDEX_XYZ(table, x, y, z) (INDEX_XY(table, x, y) + ((z)*table->width * table->height))
 
 static void RGSS_Table_Free(void *data)
 {
@@ -40,23 +41,20 @@ static VALUE RGSS_Table_Initialize(int argc, VALUE *argv, VALUE self)
     RGSS_Table *table = DATA_PTR(self);
     switch (argc)
     {
-        case 3:
-        {
+        case 3: {
             table->depth = NUM2INT(z);
             table->height = NUM2INT(y);
             table->width = NUM2INT(x);
             table->count = table->width * table->height * table->depth;
             break;
         }
-        case 2:
-        {
+        case 2: {
             table->height = NUM2INT(y);
             table->width = NUM2INT(x);
             table->count = table->width * table->height;
             break;
         }
-        case 1:
-        {
+        case 1: {
             table->width = NUM2INT(x);
             table->count = table->width;
             break;
@@ -64,7 +62,7 @@ static VALUE RGSS_Table_Initialize(int argc, VALUE *argv, VALUE self)
     }
 
     if (table->count < 1)
-        rb_raise(rb_eArgError, "dimensions must be greater than 0 when specified");
+        rb_raise(rb_eArgError, "dimensions must be greater than 0");
 
     table->dimensions = argc;
     table->data = xcalloc(sizeof(short), table->count);
@@ -80,24 +78,21 @@ static VALUE RGSS_Table_Get(int argc, VALUE *argv, VALUE self)
     long i;
     switch (argc)
     {
-        case 3:
-        {
+        case 3: {
             int z = NUM2INT(argv[2]);
             if (z < 0 || z >= t->depth)
                 rb_raise(rb_eArgError, "z value of of range (given %d, expected 0...%d)", z, t->depth);
             i += (z * t->width * t->height);
             // No break, fall-through to next argument
         }
-        case 2:
-        {
+        case 2: {
             int y = NUM2INT(argv[1]);
             if (y < 0 || y >= t->height)
                 rb_raise(rb_eArgError, "y value of of range (given %d, expected 0...%d)", y, t->height);
             i += (y * t->width);
             // No break, fall-through to next argument
         }
-        case 1:
-        {
+        case 1: {
             int x = NUM2INT(argv[0]);
             if (x < 0 || x >= t->width)
                 rb_raise(rb_eArgError, "x value of of range (given %d, expected 0...%d)", x, t->width);
@@ -111,31 +106,28 @@ static VALUE RGSS_Table_Get(int argc, VALUE *argv, VALUE self)
 
 static VALUE RGSS_Table_Set(int argc, VALUE *argv, VALUE self)
 {
-   RGSS_Table *t = DATA_PTR(self);
+    RGSS_Table *t = DATA_PTR(self);
     if (argc != t->dimensions + 1)
         rb_raise(rb_eArgError, "wrong number of arguments (given %d, expected %d)", argc, t->dimensions + 1);
 
     long i;
     switch (argc)
     {
-        case 4:
-        {
+        case 4: {
             int z = NUM2INT(argv[2]);
             if (z < 0 || z >= t->depth)
                 rb_raise(rb_eArgError, "z value of of range (given %d, expected 0...%d)", z, t->depth);
             i += (z * t->width * t->height);
             // No break, fall-through to next argument
         }
-        case 3:
-        {
+        case 3: {
             int y = NUM2INT(argv[1]);
             if (y < 0 || y >= t->height)
                 rb_raise(rb_eArgError, "y value of of range (given %d, expected 0...%d)", y, t->height);
             i += (y * t->width);
             // No break, fall-through to next argument
         }
-        case 2:
-        {
+        case 2: {
             int x = NUM2INT(argv[0]);
             if (x < 0 || x >= t->width)
                 rb_raise(rb_eArgError, "x value of of range (given %d, expected 0...%d)", x, t->width);
@@ -187,31 +179,28 @@ static VALUE RGSS_Table_Resize(int argc, VALUE *argv, VALUE self)
 
     switch (dims)
     {
-        case 1:
-        {
+        case 1: {
             for (int x = 0; x < w; x++)
             {
                 t2->data[x] = t1->data[x];
             }
             break;
         }
-        case 2:
-        {
+        case 2: {
             for (int x = 0; x < w; x++)
-            for (int y = 0; y < h; y++)
-            {
-                t2->data[INDEX_XY(t2, x, y)] = t1->data[INDEX_XY(t1, x, y)];
-            }
+                for (int y = 0; y < h; y++)
+                {
+                    t2->data[INDEX_XY(t2, x, y)] = t1->data[INDEX_XY(t1, x, y)];
+                }
             break;
         }
-        case 3:
-        {
+        case 3: {
             for (int x = 0; x < w; x++)
-            for (int y = 0; y < h; y++)
-            for (int z = 0; z < d; z++)
-            {
-                t2->data[INDEX_XYZ(t2, x, y, z)] = t1->data[INDEX_XYZ(t1, x, y, z)];
-            }
+                for (int y = 0; y < h; y++)
+                    for (int z = 0; z < d; z++)
+                    {
+                        t2->data[INDEX_XYZ(t2, x, y, z)] = t1->data[INDEX_XYZ(t1, x, y, z)];
+                    }
             break;
         }
     }
@@ -236,8 +225,7 @@ static VALUE RGSS_Table_Each(VALUE self)
 
     switch (t->dimensions)
     {
-        case 1:
-        {
+        case 1: {
             for (long x = 0; x < t->width; x++)
             {
                 value = t->data[x];
@@ -245,25 +233,23 @@ static VALUE RGSS_Table_Each(VALUE self)
             }
             break;
         }
-        case 2:
-        {
+        case 2: {
             for (long y = 0; y < t->height; y++)
-            for (long x = 0; x < t->width; x++)
-            {
-                value = t->data[INDEX_XY(t, x, y)];
-                rb_yield(rb_ary_new_from_args(3, INT2NUM(x), INT2NUM(y), INT2NUM(value)));
-            }
+                for (long x = 0; x < t->width; x++)
+                {
+                    value = t->data[INDEX_XY(t, x, y)];
+                    rb_yield(rb_ary_new_from_args(3, INT2NUM(x), INT2NUM(y), INT2NUM(value)));
+                }
             break;
         }
-        case 3:
-        {
+        case 3: {
             for (long z = 0; z < t->depth; z++)
-            for (long y = 0; y < t->height; y++)
-            for (long x = 0; x < t->width; x++)
-            {
-                value = t->data[INDEX_XYZ(t, x, y, z)];
-                rb_yield(rb_ary_new_from_args(4, INT2NUM(x), INT2NUM(y), INT2NUM(z), INT2NUM(value)));
-            }
+                for (long y = 0; y < t->height; y++)
+                    for (long x = 0; x < t->width; x++)
+                    {
+                        value = t->data[INDEX_XYZ(t, x, y, z)];
+                        rb_yield(rb_ary_new_from_args(4, INT2NUM(x), INT2NUM(y), INT2NUM(z), INT2NUM(value)));
+                    }
             break;
         }
     }

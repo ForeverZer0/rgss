@@ -46,21 +46,21 @@ static VALUE vec2_copy(VALUE self)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_copy(DATA_PTR(self), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_zero(VALUE klass)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_zero(d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_one(VALUE klass)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_one(d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_dot(VALUE self, VALUE other)
@@ -97,7 +97,7 @@ static VALUE vec2_add(VALUE self, VALUE other)
         glm_vec2_adds(v, NUM2FLT(other), d);
     }
     
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_sub(VALUE self, VALUE other)
@@ -114,7 +114,7 @@ static VALUE vec2_sub(VALUE self, VALUE other)
         glm_vec2_subs(v, NUM2FLT(other), d);
     }
     
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_mul(VALUE self, VALUE other)
@@ -131,7 +131,7 @@ static VALUE vec2_mul(VALUE self, VALUE other)
         glm_vec2_scale(v, NUM2FLT(other), d);
     }
     
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_div(VALUE self, VALUE other)
@@ -148,28 +148,28 @@ static VALUE vec2_div(VALUE self, VALUE other)
         glm_vec2_divs(v, NUM2FLT(other), d);
     }
     
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_norm_scale(VALUE self, VALUE scalar)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_scale_as(DATA_PTR(self), NUM2FLT(scalar), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_add_add(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_addadd(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_sub_add(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_subadd(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_mul_add(VALUE self, VALUE other)
@@ -185,21 +185,21 @@ static VALUE vec2_mul_add(VALUE self, VALUE other)
     {
         glm_vec2_muladds(v, NUM2FLT(other), d);
     }
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_max_add(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_maxadd(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_min_add(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_minadd(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_negate_bang(VALUE self)
@@ -212,14 +212,14 @@ static VALUE vec2_negate(VALUE self)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_negate_to(DATA_PTR(self), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_normalize(VALUE self)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_normalize_to(DATA_PTR(self), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_normalize_bang(VALUE self)
@@ -240,7 +240,7 @@ static VALUE vec2_rotate(VALUE self, VALUE angle)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_rotate(DATA_PTR(self), NUM2FLT(angle), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_distance(VALUE self, VALUE other)
@@ -257,14 +257,14 @@ static VALUE vec2_maxv(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_maxv(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_minv(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_minv(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_clamp_bang(VALUE self, VALUE min, VALUE max)
@@ -282,7 +282,7 @@ static VALUE vec2_lerp(VALUE self, VALUE other, VALUE weight)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_lerp(DATA_PTR(self), DATA_PTR(other), NUM2FLT(weight), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_lerp_bang(VALUE self, VALUE other, VALUE weight)
@@ -343,7 +343,7 @@ static VALUE vec2_sqrt(VALUE self)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_sqrt(DATA_PTR(self), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_abs(VALUE self)
@@ -352,14 +352,14 @@ static VALUE vec2_abs(VALUE self)
     float *v = DATA_PTR(self);
     d[0] = fabsf(v[0]);
     d[1] = fabsf(v[1]);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static VALUE vec2_sign(VALUE self)
 {
     float *d = RGSS_VEC2_NEW;
     glm_vec2_sign(DATA_PTR(self), d);
-    return VEC2_WRAP(d);
+    return RGSS_VEC2_WRAP(d);
 }
 
 static void vec2_create(int argc, VALUE *argv, vec2 v)
@@ -408,7 +408,7 @@ static VALUE vec2_kernel_create(int argc, VALUE *argv, VALUE module)
 {
     float *v = RGSS_VEC2_NEW;
     vec2_create(argc, argv, v);
-    return VEC2_WRAP(v);
+    return RGSS_VEC2_WRAP(v);
 }
 
 static VALUE vec2_unitx(VALUE klass)
@@ -448,21 +448,21 @@ static VALUE vec3_copy(VALUE self)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_copy(DATA_PTR(self), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_zero(VALUE klass)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_zero(d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_one(VALUE klass)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_one(d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_dot(VALUE self, VALUE other)
@@ -503,7 +503,7 @@ static VALUE vec3_add(VALUE self, VALUE other)
     {
         glm_vec3_adds(v, NUM2FLT(other), d);
     }
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_sub(VALUE self, VALUE other)
@@ -519,7 +519,7 @@ static VALUE vec3_sub(VALUE self, VALUE other)
     {
         glm_vec3_subs(v, NUM2FLT(other), d);
     }
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_mul(VALUE self, VALUE other)
@@ -535,7 +535,7 @@ static VALUE vec3_mul(VALUE self, VALUE other)
     {
         glm_vec3_scale(v, NUM2FLT(other), d);
     }
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_div(VALUE self, VALUE other)
@@ -551,28 +551,28 @@ static VALUE vec3_div(VALUE self, VALUE other)
     {
         glm_vec3_divs(v, NUM2FLT(other), d);
     }
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_norm_scale(VALUE self, VALUE value)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_scale_as(DATA_PTR(self), NUM2FLT(value), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_add_add(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_addadd(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_sub_add(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_subadd(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_mul_add(VALUE self, VALUE other)
@@ -589,28 +589,28 @@ static VALUE vec3_mul_add(VALUE self, VALUE other)
         glm_vec3_muladds(v, NUM2FLT(other), d);
     }
 
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_max_add(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_maxadd(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_min_add(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_minadd(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_negate(VALUE self)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_negate_to(DATA_PTR(self), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_negate_bang(VALUE self)
@@ -623,7 +623,7 @@ static VALUE vec3_normalize(VALUE self)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_normalize_to(DATA_PTR(self), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_normalize_bang(VALUE self)
@@ -636,14 +636,14 @@ static VALUE vec3_cross(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_cross(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_cross_norm(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_crossn(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_angle(VALUE self, VALUE other)
@@ -721,21 +721,21 @@ static VALUE vec3_rotate(int argc, VALUE *argv, VALUE self)
             }
         }
     }
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_project(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_proj(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_center(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_center(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_distance(VALUE self, VALUE other)
@@ -752,21 +752,21 @@ static VALUE vec3_maxv(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_maxv(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_minv(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_minv(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_ortho(VALUE self)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_ortho(DATA_PTR(self), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_clamp_bang(VALUE self, VALUE min, VALUE max)
@@ -814,7 +814,7 @@ static VALUE vec3_lerp(int argc, VALUE *argv, VALUE self)
     {
         glm_vec3_lerp(v, DATA_PTR(other), NUM2FLT(weight), d);
     }
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_step(VALUE self, VALUE edge)
@@ -831,7 +831,7 @@ static VALUE vec3_step(VALUE self, VALUE edge)
         glm_vec3_step_uni(NUM2FLT(edge), v, d);
     }
 
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_smoothstep(VALUE self, VALUE low, VALUE high)
@@ -848,7 +848,7 @@ static VALUE vec3_smoothstep(VALUE self, VALUE low, VALUE high)
         glm_vec3_smoothstep_uni(NUM2FLT(low), NUM2FLT(high), v, d);
     }
 
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_smoothinterp(int argc, VALUE *argv, VALUE self)
@@ -868,14 +868,14 @@ static VALUE vec3_smoothinterp(int argc, VALUE *argv, VALUE self)
     {
         glm_vec3_smoothinterp(from, to, w, d);
     }
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_swizzle(VALUE self, VALUE mask)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_swizzle(DATA_PTR(self), NUM2INT(mask), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_swizzle_bang(VALUE self, VALUE mask)
@@ -924,14 +924,14 @@ static VALUE vec3_sqrt(VALUE self)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_sqrt(DATA_PTR(self), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_abs(VALUE self)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_abs(DATA_PTR(self), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_sum(VALUE self)
@@ -943,14 +943,14 @@ static VALUE vec3_sign(VALUE self)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_sign(DATA_PTR(self), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_fract(VALUE self)
 {
     float *d = RGSS_VEC3_NEW;
     glm_vec3_fract(DATA_PTR(self), d);
-    return VEC3_WRAP(d);
+    return RGSS_VEC3_WRAP(d);
 }
 
 static VALUE vec3_all_p(int argc, VALUE *argv, VALUE self)
@@ -1063,7 +1063,7 @@ static VALUE vec3_kernel_create(int argc, VALUE *argv, VALUE module)
 {
     float *v = RGSS_VEC3_NEW;
     vec3_create(argc, argv, v);
-    return VEC3_WRAP(v);
+    return RGSS_VEC3_WRAP(v);
 }
 
 static VALUE vec4_get(VALUE self, VALUE index)
@@ -1087,21 +1087,21 @@ static VALUE vec4_copy(VALUE self)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_copy(DATA_PTR(self), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_zero(VALUE klass)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_zero(d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_one(VALUE klass)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_one(d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_unitx(VALUE klass)
@@ -1142,7 +1142,7 @@ static VALUE vec4_add(VALUE self, VALUE other)
     {
         glm_vec4_adds(v, NUM2FLT(other), d);
     }
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_sub(VALUE self, VALUE other)
@@ -1158,7 +1158,7 @@ static VALUE vec4_sub(VALUE self, VALUE other)
     {
         glm_vec4_subs(v, NUM2FLT(other), d);
     }
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_mul(VALUE self, VALUE other)
@@ -1174,7 +1174,7 @@ static VALUE vec4_mul(VALUE self, VALUE other)
     {
         glm_vec4_scale(v, NUM2FLT(other), d);
     }
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_div(VALUE self, VALUE other)
@@ -1190,21 +1190,21 @@ static VALUE vec4_div(VALUE self, VALUE other)
     {
         glm_vec4_divs(v, NUM2FLT(other), d);
     }
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_add_add(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_addadd(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_sub_add(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_subadd(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_mul_add(VALUE self, VALUE other)
@@ -1221,21 +1221,21 @@ static VALUE vec4_mul_add(VALUE self, VALUE other)
         glm_vec4_muladds(v, NUM2FLT(other), d);
     }
 
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_max_add(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_maxadd(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_min_add(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_minadd(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_length(VALUE self)
@@ -1252,14 +1252,14 @@ static VALUE vec4_norm_scale(VALUE self, VALUE value)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_scale_as(DATA_PTR(self), NUM2FLT(value), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_negate(VALUE self)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_negate_to(DATA_PTR(self), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_negate_bang(VALUE self)
@@ -1282,7 +1282,7 @@ static VALUE vec4_normalize(VALUE self)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_normalize_to(DATA_PTR(self), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_normalize_bang(VALUE self)
@@ -1305,14 +1305,14 @@ static VALUE vec4_maxv(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_maxv(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_minv(VALUE self, VALUE other)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_minv(DATA_PTR(self), DATA_PTR(other), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_clamp_bang(VALUE self, VALUE min, VALUE max)
@@ -1360,7 +1360,7 @@ static VALUE vec4_lerp(int argc, VALUE *argv, VALUE self)
     {
         glm_vec4_lerp(v, DATA_PTR(other), NUM2FLT(weight), d);
     }
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_step(VALUE self, VALUE edge)
@@ -1377,7 +1377,7 @@ static VALUE vec4_step(VALUE self, VALUE edge)
         glm_vec4_step_uni(NUM2FLT(edge), v, d);
     }
 
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_smoothstep(VALUE self, VALUE low, VALUE high)
@@ -1394,7 +1394,7 @@ static VALUE vec4_smoothstep(VALUE self, VALUE low, VALUE high)
         glm_vec4_smoothstep_uni(NUM2FLT(low), NUM2FLT(high), v, d);
     }
 
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_smoothinterp(int argc, VALUE *argv, VALUE self)
@@ -1414,14 +1414,14 @@ static VALUE vec4_smoothinterp(int argc, VALUE *argv, VALUE self)
     {
         glm_vec4_smoothinterp(from, to, w, d);
     }
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_swizzle(VALUE self, VALUE mask)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_swizzle(DATA_PTR(self), NUM2INT(mask), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_swizzle_bang(VALUE self, VALUE mask)
@@ -1442,7 +1442,7 @@ static VALUE vec4_cubic(VALUE klass, VALUE parameter)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_cubic(NUM2FLT(parameter), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_equal(int argc, VALUE *argv, VALUE self)
@@ -1494,14 +1494,14 @@ static VALUE vec4_sqrt(VALUE self)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_sqrt(DATA_PTR(self), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_abs(VALUE self)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_abs(DATA_PTR(self), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_sum(VALUE self)
@@ -1513,14 +1513,14 @@ static VALUE vec4_sign(VALUE self)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_sign(DATA_PTR(self), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static VALUE vec4_fract(VALUE self)
 {
     float *d = RGSS_VEC4_NEW;
     glm_vec4_fract(DATA_PTR(self), d);
-    return VEC4_WRAP(d);
+    return RGSS_VEC4_WRAP(d);
 }
 
 static inline void vec4_create(int argc, VALUE *argv, vec4 v)
@@ -1637,7 +1637,7 @@ static VALUE vec4_kernel_create(int argc, VALUE *argv, VALUE module)
 {
     float *v = RGSS_VEC4_NEW;
     vec4_create(argc, argv, v);
-    return VEC4_WRAP(v);
+    return RGSS_VEC4_WRAP(v);
 }
 
 void RGSS_Init_Vectors(VALUE parent)

@@ -297,11 +297,7 @@ static VALUE RGSS_Font_Bake(int argc, VALUE *argv, VALUE self)
     RGSS_Size *size = DATA_PTR(bounds);
     char *markup = StringValueCStr(text);
 
-    if (size->width < 1)
-        rb_raise(rb_eArgError, "width must be greater than 0");
-    if (size->height < 1)
-        rb_raise(rb_eArgError, "height must be greater than 0");
-
+    RGSS_SizeNotEmpty(size->width, size->height);
     int align;
     int plain;
     RGSS_ParseOpt(opts, "align", PANGO_ALIGN_LEFT, &align);
