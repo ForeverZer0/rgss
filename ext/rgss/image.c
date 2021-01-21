@@ -2,12 +2,6 @@
 
 VALUE rb_cImage;
 
-typedef struct {
-    int width;
-    int height;
-    unsigned char *pixels;
-} RGSS_Image; // TODO: Move to main header
-
 #define STBI_NO_PSD 1
 #define STBI_NO_HDR 1
 #define STBI_NO_PIC 1

@@ -1,6 +1,42 @@
 
 module RGSS
 
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   class SpriteAtlas < Sprite
 
     attr_reader :region

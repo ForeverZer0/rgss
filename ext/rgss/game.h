@@ -57,7 +57,7 @@ typedef struct
     GLenum dst;
 } RGSS_Blend;
 
-typedef struct
+typedef struct RGSS_Entity
 {
     vec4 *model;
     vec3 position;
@@ -199,7 +199,6 @@ extern ID RGSS_ID_UPDATE_VERTICES;
 extern ID RGSS_ID_BATCH;
 extern ID RGSS_ID_RENDER;
 extern ID RGSS_ID_UPDATE;
-extern ID RGSS_ID_SEND;
 
 #define ATTR_READER(type, attr, field, to_ruby)                                                                        \
     static VALUE type##_Get##attr(VALUE self)                                                                          \

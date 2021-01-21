@@ -4,6 +4,30 @@
 #include "glad.h"
 #include "rgss.h"
 
+typedef struct RGSS_Entity RGSS_Entity;
+
+/**
+ * @brief A set of vertices for drawing a textured quad with two triangles using an element buffer.
+ * @see RGSS_QUAD_INDICES
+ */
+static const GLfloat RGSS_QUAD_VERTICES[] = 
+{
+    0.0f, 1.0f, 0.0f, 1.0f, // Bottom-Left
+    1.0f, 0.0f, 1.0f, 0.0f, // Top-Right
+    0.0f, 0.0f, 0.0f, 0.0f, // Top-Left
+    1.0f, 1.0f, 1.0f, 1.0f, // Bottom-Right
+};
+
+/**
+ * @brief A set of indices for drawing a textured quad.
+ * @see RGSS_QUAD_VERTICES
+ */
+static const GLubyte RGSS_QUAD_INDICES[] =
+{
+    0, 1, 2, // First Triangle 
+    0, 3, 1  // Second Triangle
+};
+
 /**
  * @brief Asserts the specified program ID is valid, raising a Ruby exception if not.
  * @param[in] id The name of an OpenGL shader program.
@@ -91,5 +115,44 @@ GLuint RGSS_CreateProgramFromSource(const char *vert_src, const char *frag_src, 
  * @return The OpenGL program name.
  */
 GLuint RGSS_CreateProgramFromFile(const char *vert_path, const char *frag_path, const char *geom_path);
+
+/**
+ * 
+ */
+void RGSS_Entity_Init(RGSS_Entity *entity);
+
+void RGSS_Entity_Deinit(RGSS_Entity *entity);
+
+
+static inline void RGSS_ValueToVec3(VALUE value, vec3 result)
+{
+    if (!RTEST(value))
+    {
+        glm_vec3_zero(result);
+        return;
+    }
+
+    result[2] = 0.0f;
+    if (rb_obj_is_kind_of(value, rb_cIVec2) == Qtrue)
+    {
+        int *ivec = DATA_PTR(value);
+        result[0] = (float)ivec[0];
+        result[1] = (float)ivec[1];
+    }
+    else if (rb_obj_is_kind_of(value, rb_cVec2))
+    {
+        float *vec = DATA_PTR(value);
+        result[0] = vec[0];
+        result[1] = vec[1];
+    }
+    else if (rb_obj_is_kind_of(value, rb_cVec3))
+    {
+        glm_vec3_copy(DATA_PTR(value), result);
+    }
+    else
+    {
+        rb_raise(rb_eTypeError, "%s is not a Point, Size, Vec2, or Vec3", CLASS_NAME(value));
+    }
+}
 
 #endif /* RGSS_GRAPHICS_H */

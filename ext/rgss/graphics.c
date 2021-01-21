@@ -2,6 +2,7 @@
 #include "game.h"
 
 VALUE rb_mGraphics;
+VALUE rb_eGLError;
 VALUE rb_cShader;
 
 #define RGSS_GRAPHICS RGSS_GAME.graphics
@@ -38,6 +39,8 @@ void RGSS_Graphics_GLCallback(GLenum source, GLenum type, GLuint id, GLenum seve
     }
 
     RGSS_Log(level, "%s (%s)", msg, kind);
+    if (level == RGSS_LOG_FATAL)
+        rb_raise(rb_eGLError, "%s", msg);
 }
 
 #define RGSS_VIEWPORT(rect)                                                                                            \
@@ -104,7 +107,10 @@ GLuint RGSS_CreateProgram(GLuint vertex, GLuint fragment, GLuint geometry)
 
     GLint index = glGetUniformBlockIndex(program, "ortho");
     if (index != GL_INVALID_INDEX)
+    {
         glUniformBlockBinding(program, index, 0);
+        RGSS_LogDebug("Shader program bound to projection UBO at index %d", index);
+    }
 
     return program;
 }
@@ -515,6 +521,7 @@ static VALUE RGSS_Graphics_GetBatch(VALUE graphics)
 void RGSS_Init_Graphics(VALUE parent)
 {
     rb_mGraphics = rb_define_module_under(parent, "Graphics");
+    rb_eGLError = rb_define_class_under(parent, "GLError", rb_eStandardError);
     rb_define_singleton_method0(rb_mGraphics, "frame_rate", RGSS_Graphics_GetFPS, 0);
     rb_define_singleton_method0(rb_mGraphics, "frame_count", RGSS_Graphics_GetFrameCount, 0);
     rb_define_singleton_method0(rb_mGraphics, "back_color", RGSS_Graphics_GetBackColor, 0);

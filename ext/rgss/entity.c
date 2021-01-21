@@ -1,4 +1,5 @@
 #include "game.h"
+#include "graphics.h"
 
 #define VERTICES_COUNT  16
 #define VERTICES_SIZE   (SIZEOF_FLOAT * VERTICES_COUNT)
@@ -47,36 +48,6 @@ typedef struct {
 
 // TODO: Use direct pointer with RUBY_NEVER_FREE instead of new vector?
 
-static inline void RGSS_Entity_ParseArg(VALUE value, vec3 result)
-{
-    if (!RTEST(value))
-    {
-        glm_vec3_zero(result);
-        return;
-    }
-
-    result[2] = 0.0f;
-    if (rb_obj_is_kind_of(value, rb_cIVec2) == Qtrue)
-    {
-        int *ivec = DATA_PTR(value);
-        result[0] = (float)ivec[0];
-        result[1] = (float)ivec[1];
-    }
-    else if (rb_obj_is_kind_of(value, rb_cVec2))
-    {
-        float *vec = DATA_PTR(value);
-        result[0] = vec[0];
-        result[1] = vec[1];
-    }
-    else if (rb_obj_is_kind_of(value, rb_cVec3))
-    {
-        glm_vec3_copy(DATA_PTR(value), result);
-    }
-    else
-    {
-        rb_raise(rb_eTypeError, "%s is not a Point, Size, Vec2, or Vec3", CLASS_NAME(value));
-    }
-}
 
 static void RGSS_Entity_Free(void *data)
 {
@@ -84,15 +55,12 @@ static void RGSS_Entity_Free(void *data)
     {
         RGSS_Entity *entity = data;
         if (entity->model)
-        {
             free(entity->model);
-            entity->model = NULL;
-        }
         xfree(data);
     }
 }
 
-static void RGSS_Enity_Init(RGSS_Entity *entity)
+void RGSS_Entity_Init(RGSS_Entity *entity)
 {
     entity->model = RGSS_MAT4_NEW;
     glm_mat4_identity(entity->model);
@@ -103,6 +71,15 @@ static void RGSS_Enity_Init(RGSS_Entity *entity)
     glm_vec3_zero(entity->pivot);
     entity->angle = 0.0f;
     entity->depth = 0;
+}
+
+void RGSS_Entity_Deinit(RGSS_Entity *entity)
+{
+    if (entity && entity->model)
+    {
+        free(entity->model);
+        memset(entity, 0, sizeof(RGSS_Entity));
+    }
 }
 
 static void RGSS_Renderable_Init(RGSS_Renderable *obj)
@@ -123,7 +100,7 @@ static void RGSS_Renderable_Init(RGSS_Renderable *obj)
 static VALUE RGSS_Entity_Alloc(VALUE klass)
 {
     RGSS_Entity *entity = ALLOC(RGSS_Entity);
-    RGSS_Enity_Init(entity);
+    RGSS_Entity_Init(entity);
     return Data_Wrap_Struct(klass, NULL, RGSS_Entity_Free, entity);
 }
 
@@ -237,7 +214,7 @@ static VALUE RGSS_Entity_SetPosition(VALUE self, VALUE value)
     RGSS_Entity *entity = DATA_PTR(self);
 
     vec3 vec;
-    RGSS_Entity_ParseArg(value, vec);
+    RGSS_ValueToVec3(value, vec);
 
     glm_vec3_copy(vec, entity->position);
     return value;
@@ -254,7 +231,7 @@ static VALUE RGSS_Entity_SetVelocity(VALUE self, VALUE value)
     RGSS_Entity *entity = DATA_PTR(self);
 
     vec3 vec;
-    RGSS_Entity_ParseArg(value, vec);
+    RGSS_ValueToVec3(value, vec);
 
     glm_vec3_copy(vec, entity->velocity);
     return value;
@@ -271,7 +248,7 @@ static VALUE RGSS_Entity_SetScale(VALUE self, VALUE value)
     RGSS_Entity *entity = DATA_PTR(self);
 
     vec3 vec;
-    RGSS_Entity_ParseArg(value, vec);
+    RGSS_ValueToVec3(value, vec);
 
     glm_vec3_copy(vec, entity->scale);
     return value;
@@ -288,7 +265,7 @@ static VALUE RGSS_Entity_SetPivot(VALUE self, VALUE value)
     RGSS_Entity *entity = DATA_PTR(self);
 
     vec3 vec;
-    RGSS_Entity_ParseArg(value, vec);
+    RGSS_ValueToVec3(value, vec);
 
     glm_vec3_copy(vec, entity->pivot);
     return value;
@@ -305,7 +282,7 @@ static VALUE RGSS_Entity_SetSize(VALUE self, VALUE value)
     RGSS_Entity *entity = DATA_PTR(self);
 
     vec3 vec;
-    RGSS_Entity_ParseArg(value, vec);
+    RGSS_ValueToVec3(value, vec);
 
     if (rb_respond_to(self, RGSS_ID_UPDATE_VERTICES))
         rb_funcall2(self, RGSS_ID_UPDATE_VERTICES, 0, NULL);
@@ -348,7 +325,7 @@ static VALUE RGSS_Entity_Rotate(int argc, VALUE *argv, VALUE self)
     RGSS_Entity *entity = DATA_PTR(self);
 
     vec3 value;
-    RGSS_Entity_ParseArg(pivot, value);
+    RGSS_ValueToVec3(pivot, value);
 
     entity->angle = NUM2DBL(degrees) * (M_PI / 180.0);
 
@@ -401,8 +378,7 @@ static void RGSS_Renderable_Free(void *data)
     if (data)
     {
         RGSS_Renderable *obj = data;
-        if (obj->entity.model)
-            free(obj->entity.model);
+        RGSS_Entity_Deinit(&obj->entity);
         xfree(data);
     }
 }
@@ -417,7 +393,7 @@ static VALUE RGSS_Renderable_Alloc(VALUE klass)
 {
     RGSS_Renderable *obj = ALLOC(RGSS_Renderable);
     memset(obj, 0, sizeof(RGSS_Renderable));
-    RGSS_Enity_Init(&obj->entity);
+    RGSS_Entity_Init(&obj->entity);
     return Data_Wrap_Struct(klass, RGSS_Renderable_Mark, RGSS_Renderable_Free, obj);
 }
 
@@ -923,7 +899,7 @@ static VALUE RGSS_Sprite_Alloc(VALUE klass)
 {
     RGSS_Sprite *sprite = ALLOC(RGSS_Sprite);
     memset(sprite, 0, sizeof(RGSS_Sprite));
-    RGSS_Enity_Init(&sprite->base.entity);
+    RGSS_Entity_Init(&sprite->base.entity);
     sprite->texture = Qnil;
     sprite->texture = Qnil;
     return Data_Wrap_Struct(klass, RGSS_Sprite_Mark, RGSS_Renderable_Free, sprite);
@@ -998,8 +974,7 @@ static void RGSS_Viewport_Free(void *data)
 {
     RGSS_Viewport *vp = data;
     vec_deinit(&vp->batch.items);
-    if (vp->base.entity.model)
-        xfree(vp->base.entity.model);
+    RGSS_Entity_Deinit(&vp->base.entity);
     xfree(data);
 }
 
@@ -1007,7 +982,7 @@ static VALUE RGSS_Viewport_Alloc(VALUE klass)
 {
     RGSS_Viewport *vp = ALLOC(RGSS_Viewport);
     memset(vp, 0, sizeof(RGSS_Viewport));
-    RGSS_Enity_Init(&vp->base.entity);
+    RGSS_Entity_Init(&vp->base.entity);
     vec_init(&vp->batch.items);
     return Data_Wrap_Struct(klass, RGSS_Viewport_Mark, RGSS_Viewport_Free, vp);
 }
@@ -1203,7 +1178,7 @@ static VALUE RGSS_Plane_Alloc(VALUE klass)
 {
     RGSS_Plane *plane = ALLOC(RGSS_Plane);
     memset(plane, 0, sizeof(RGSS_Plane));
-    RGSS_Enity_Init(&plane->base.entity);
+    RGSS_Entity_Init(&plane->base.entity);
     plane->texture = Qnil;
     plane->viewport = Qnil;
     return Data_Wrap_Struct(klass, RGSS_Plane_Mark, RGSS_Renderable_Free, plane);

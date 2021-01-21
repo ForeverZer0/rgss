@@ -10,13 +10,12 @@
 #define CLASS_NAME(obj) rb_class2name(CLASS_OF(obj))
 #define STR2SYM(str)    ID2SYM(rb_intern(str))
 
-extern VALUE rb_mRGSS;
-extern VALUE rb_eRGSSError;
-
-extern VALUE rb_mGLFW;
-extern VALUE rb_cWindow;
-extern VALUE rb_cMonitor;
-extern VALUE rb_cCursor;
+extern VALUE rb_mRGSS;      /** A module containing the top-level namespace of the API. */
+extern VALUE rb_eRGSSError; /** A general exception class for errors related to library usage. */
+extern VALUE rb_mGLFW;      /** Module containing the GLFW bindings. */
+extern VALUE rb_cWindow;    /** Class representing an opaque GLFW window handle. */
+extern VALUE rb_cMonitor;   /** Class representing an opaque GLFW monitor handle. */
+extern VALUE rb_cCursor;    /** Class representing an opaque GLFW cursor handle. */
 extern VALUE rb_cVideoMode;
 extern VALUE rb_cGamepad;
 extern VALUE rb_cGammaRamp;
@@ -70,6 +69,7 @@ void RGSS_Init_Batch(VALUE parent);
 void RGSS_Init_Entity(VALUE parent);
 void RGSS_Init_Font(VALUE parent);
 void RGSS_Init_Texture(VALUE parent);
+void RGSS_Init_Particles(VALUE parent);
 
 VALUE RGSS_Handle_Alloc(VALUE klass);
 
@@ -159,88 +159,11 @@ static inline void *RGSS_MALLOC_ALIGNED(size_t size, size_t alignment)
     int err = posix_memalign(&mem, alignment, size);
     switch (err)
     {
-        case EINVAL:
-            rb_raise(rb_eRGSSError, "invalid alignment specified");
-        case ENOMEM:
-            rb_raise(rb_eNoMemError, "out of memory");
+        case EINVAL: rb_raise(rb_eRGSSError, "invalid alignment specified");
+        case ENOMEM: rb_raise(rb_eNoMemError, "out of memory");
     }
     return mem;
 }
-
-static inline VALUE RGSS_Vec2_New(float x, float y)
-{
-    float *v = RGSS_VEC2_NEW;
-    v[0] = x;
-    v[1] = y;
-    return Data_Wrap_Struct(rb_cVec2, NULL, free, v);
-}
-
-static inline VALUE RGSS_Vec3_New(float x, float y, float z)
-{
-    float *v = RGSS_VEC3_NEW;
-    v[0] = x;
-    v[1] = y;
-    v[2] = z;
-    return Data_Wrap_Struct(rb_cVec3, NULL, free, v);
-}
-
-static inline VALUE RGSS_Vec4_New(float x, float y, float z, float w)
-{
-    float *v = RGSS_VEC4_NEW;
-    v[0] = x;
-    v[1] = y;
-    v[2] = z;
-    v[3] = w;
-    return Data_Wrap_Struct(rb_cVec4, NULL, free, v);
-}
-
-static inline void *RGSS_ValuePointer(VALUE value)
-{
-    if (value == Qnil)
-        return NULL;
-
-    // TODO: Check for Fiddle::Pointer type
-
-    if (RB_TYPE_P(value, T_DATA))
-        return DATA_PTR(value);
-
-    if (RB_TYPE_P(value, T_STRING))
-        return StringValuePtr(value);
-
-    if (RB_INTEGER_TYPE_P(value))
-        return NUM2PTR(value);
-
-    return NULL;
-}
-
-static inline void RGSS_SizeNotEmpty(int width, int height)
-{
-    if (width < 1)
-        rb_raise(rb_eArgError, "width must be greater than 0 (given $d)", width);
-    if (height < 1)
-        rb_raise(rb_eArgError, "height must be greater than 0 (given %d)", height);
-}
-
-static inline void RGSS_PackColor(RGSS_Color color, unsigned int *value)
-{
-    unsigned char *rgba = (unsigned char *)value;
-    rgba[0] = (unsigned char)roundf(color[0] * 255.0f);
-    rgba[1] = (unsigned char)roundf(color[1] * 255.0f);
-    rgba[2] = (unsigned char)roundf(color[2] * 255.0f);
-    rgba[3] = (unsigned char)roundf(color[3] * 255.0f);
-}
-
-static inline void RGSS_UnpackColor(unsigned int value, RGSS_Color color)
-{
-    unsigned char *rgba = (unsigned char *)&value;
-    color[0] = (float)rgba[0] / 255.0f;
-    color[1] = (float)rgba[1] / 255.0f;
-    color[2] = (float)rgba[2] / 255.0f;
-    color[3] = (float)rgba[3] / 255.0f;
-}
-
-VALUE RGSS_Color_New(VALUE klass, float r, float g, float b, float a);
-
 
 #define RB2PTR(value) RGSS_ValuePointer(value)
 
@@ -273,11 +196,162 @@ VALUE RGSS_Color_New(VALUE klass, float r, float g, float b, float a);
     if (rb_obj_frozen_p(value))                                                                                        \
     rb_raise(rb_eFrozenError, "cannot modify frozen %s", CLASS_NAME(self))
 
+static inline float RGSS_Rand()
+{
+    return (float) rand() / RAND_MAX;
+}
+
+/**
+ * @brief Converts a Ruby VALUE object into a C pointer, accepting multiple Ruby types.
+ *
+ * When value is @c nil, return a @c NULL pointer, returns a pointer to a @c String object, or
+ * to the data pointer when value is a custom type implemented in C.
+ *
+ * @param[in] value A Ruby object to convert.
+ */
+static inline void *RGSS_ValuePointer(VALUE value)
+{
+    if (value == Qnil)
+        return NULL;
+
+    // TODO: Check for Fiddle::Pointer type
+
+    if (RB_TYPE_P(value, T_DATA))
+        return DATA_PTR(value);
+
+    if (RB_TYPE_P(value, T_STRING))
+        return StringValuePtr(value);
+
+    if (RB_INTEGER_TYPE_P(value))
+        return NUM2PTR(value);
+
+    return NULL;
+}
+
+/**
+ * @brief Asserts that the specified dimensions are each greater than 0, throwing appropriate Ruby exception if not.
+ * @param[in] width The width value to test.
+ * @param[out] height The height value to test.
+ */
+static inline void RGSS_SizeNotEmpty(int width, int height)
+{
+    if (width < 1)
+        rb_raise(rb_eArgError, "width must be greater than 0 (given $d)", width);
+    if (height < 1)
+        rb_raise(rb_eArgError, "height must be greater than 0 (given %d)", height);
+}
+
+/**
+ * @brief Packs the values of a vectorized color into an integer value (8-bit).
+ * @param[in] color The color to pack.
+ * @param[in,out] value The packed value.
+ */
+static inline void RGSS_PackColor(RGSS_Color color, unsigned int *value)
+{
+    unsigned char *rgba = (unsigned char *)value;
+    rgba[0] = (unsigned char)roundf(color[0] * 255.0f);
+    rgba[1] = (unsigned char)roundf(color[1] * 255.0f);
+    rgba[2] = (unsigned char)roundf(color[2] * 255.0f);
+    rgba[3] = (unsigned char)roundf(color[3] * 255.0f);
+}
+
+/**
+ * @brief Unpacks an integer with 8-bit color data into a vectorized color.
+ * @param[in] value The packed color value;
+ * @param[in,out] color The resulting color.
+ */
+static inline void RGSS_UnpackColor(unsigned int value, RGSS_Color color)
+{
+    unsigned char *rgba = (unsigned char *)&value;
+    color[0] = (float)rgba[0] / 255.0f;
+    color[1] = (float)rgba[1] / 255.0f;
+    color[2] = (float)rgba[2] / 255.0f;
+    color[3] = (float)rgba[3] / 255.0f;
+}
+
+/**
+ * @brief Creates a new color as a Ruby object.
+ * @param[in] r A normalized value between @c 0.0 and @c 1.0 for the red component.
+ * @param[in] g A normalized value between @c 0.0 and @c 1.0 for the green component.
+ * @param[in] b A normalized value between @c 0.0 and @c 1.0 for the blue component.
+ * @param[in] a A normalized value between @c 0.0 and @c 1.0 for the alpha component.
+ * @return The newly created Ruby object.
+ */
+VALUE RGSS_Color_New(VALUE klass, float r, float g, float b, float a);
+
+/**
+ * @brief Creates a new 2-component vector as a Ruby VALUE.
+ * @param[in] x The vector x component.
+ * @param[in] y The vector y component.
+ * @return The created Ruby vector.
+ */
+static inline VALUE RGSS_Vec2_New(float x, float y)
+{
+    float *v = RGSS_VEC2_NEW;
+    v[0] = x;
+    v[1] = y;
+    return Data_Wrap_Struct(rb_cVec2, NULL, free, v);
+}
+
+/**
+ * @brief Creates a new 3-component vector as a Ruby VALUE.
+ * @param[in] x The vector x component.
+ * @param[in] y The vector y component.
+ * @param[in] z The vector z component.
+ * @return The created Ruby vector.
+ */
+static inline VALUE RGSS_Vec3_New(float x, float y, float z)
+{
+    float *v = RGSS_VEC3_NEW;
+    v[0] = x;
+    v[1] = y;
+    v[2] = z;
+    return Data_Wrap_Struct(rb_cVec3, NULL, free, v);
+}
+
+/**
+ * @brief Creates a new 4-component vector as a Ruby VALUE.
+ * @param[in] x The vector x component.
+ * @param[in] y The vector y component.
+ * @param[in] z The vector z component.
+ * @param[in] w The vector w component.
+ * @return The created Ruby vector.
+ */
+static inline VALUE RGSS_Vec4_New(float x, float y, float z, float w)
+{
+    float *v = RGSS_VEC4_NEW;
+    v[0] = x;
+    v[1] = y;
+    v[2] = z;
+    v[3] = w;
+    return Data_Wrap_Struct(rb_cVec4, NULL, free, v);
+}
+
+/**
+ * @brief Gets the maximum of two comparibale values.
+ * @note This macro is not type-safe and is subject to double evaluation.
+ */
 #define RGSS_MAX(a, b) (((a) > (b)) ? (a) : (b))
+
+/**
+ * @brief Gets the minimum of two comparibale values.
+ * @note This macro is not type-safe and is subject to double evaluation.
+ */
 #define RGSS_MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 /**
- * @brief Read the context of the specified file descriptor into a buffer, raising an appropriate Ruby excpetion on failure.
+ * @brief Generic structure containing raw image data.
+ */
+typedef struct
+{
+    int width;             /** The width of the image in pixel units. */
+    int height;            /** The height of the image in pixel units. */
+    unsigned char *pixels; /** The pixel data. */
+} RGSS_Image;
+
+/**
+ * @brief Read the context of the specified file descriptor into a buffer, raising an appropriate Ruby excpetion on
+ * failure.
  * @param[in] fd A valid file descriptor to read.
  * @return A null-terminated buffer containing the file text. The pointer must be freed when done with it.
  */
@@ -348,7 +422,8 @@ int RGSS_Image_SaveJPG(const char *filename, int width, int height, unsigned cha
  * @param[in] path The path to the image file.
  * @param[in,out] width The width of the image, in pixels;
  * @param[in,out] height The height of the image, in pixels;
- * @param[in,out] pixels A pointer to recieve the address of the images in pixels, a tightly packed array of RGBA data, 4 bytes per pixel.
+ * @param[in,out] pixels A pointer to recieve the address of the images in pixels, a tightly packed array of RGBA data,
+ * 4 bytes per pixel.
  */
 void RGSS_Image_Load(const char *path, int *width, int *height, unsigned char **pixels);
 
@@ -388,13 +463,13 @@ void RGSS_Log(RGSS_LOG_LEVEL level, const char *format, ...);
  * @brief Logs a warning message.
  * @param[in] format A format string for the log message.
  */
-#define RGSS_LogWarn(format, ...)  RGSS_Log(RGSS_LOG_WARN, format, ##__VA_ARGS__)
+#define RGSS_LogWarn(format, ...) RGSS_Log(RGSS_LOG_WARN, format, ##__VA_ARGS__)
 
 /**
  * @brief Logs a general informational message.
  * @param[in] format A format string for the log message.
  */
-#define RGSS_LogInfo(format, ...)  RGSS_Log(RGSS_LOG_INFO, format, ##__VA_ARGS__)
+#define RGSS_LogInfo(format, ...) RGSS_Log(RGSS_LOG_INFO, format, ##__VA_ARGS__)
 
 /**
  * @brief Logs a low-level debug message.

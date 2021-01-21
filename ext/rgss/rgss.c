@@ -1,5 +1,6 @@
 #include "rgss.h"
 #include "ruby/io.h"
+#include <time.h>
 
 VALUE rb_mRGSS;
 VALUE rb_eRGSSError;
@@ -9,7 +10,6 @@ ID RGSS_ID_UPDATE_VERTICES;
 ID RGSS_ID_BATCH;
 ID RGSS_ID_RENDER;
 ID RGSS_ID_UPDATE;
-ID RGSS_ID_SEND;
 ID RGSS_ID_ADD;
 
 
@@ -20,7 +20,7 @@ void RGSS_Log(RGSS_LOG_LEVEL level, const char *format, ...)
 
     va_list args;
     va_start(args, format);
-    VALUE msg = rb_sprintf(format, args);
+    VALUE msg = rb_vsprintf(format, args);
     va_end(args);
 
     rb_funcall(RGSS_LOGGER, RGSS_ID_ADD, 2, INT2NUM(level), msg);    
@@ -115,7 +115,7 @@ char *RGSS_ReadFileTextRB(VALUE source)
     }
     else
     {
-        rb_raise(rb_eTypeError, "file is not a String, File, or Integer");
+        rb_raise(rb_eTypeError, "%s is not a String, File, or Integer", CLASS_NAME(source));
     }
 
     rb_io_t *io;
@@ -129,6 +129,9 @@ char *RGSS_ReadFileTextRB(VALUE source)
 
 void Init_rgss(void)
 {
+    // TODO: Make seed configurable?
+    time_t t;
+    srand((unsigned) time(&t));
     rb_mRGSS = rb_define_module("RGSS");
     rb_eRGSSError = rb_define_class_under(rb_mRGSS, "RGSSError", rb_eStandardError);
 
@@ -152,6 +155,7 @@ void Init_rgss(void)
     RGSS_Init_Entity(rb_mRGSS);
     RGSS_Init_Texture(rb_mRGSS);
     RGSS_Init_Font(rb_mRGSS);
+    RGSS_Init_Particles(rb_mRGSS);
 
     rb_define_const(rb_mRGSS, "SIZEOF_VOIDP", INT2NUM(SIZEOF_VOIDP));
     rb_define_const(rb_mRGSS, "SIZEOF_CHAR", INT2NUM(1));
@@ -170,7 +174,6 @@ void Init_rgss(void)
     RGSS_ID_UPDATE_VERTICES = rb_intern("update_vertices");
     RGSS_ID_BATCH = rb_intern("batch");
     RGSS_ID_RENDER = rb_intern("render");
-    RGSS_ID_SEND = rb_intern("send");
     RGSS_ID_UPDATE = rb_intern("update");
     RGSS_ID_ADD = rb_intern("add");
 }
