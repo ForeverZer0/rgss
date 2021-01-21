@@ -15,8 +15,6 @@ VALUE rb_cViewport;
 VALUE rb_cSprite;
 VALUE rb_cPlane;
 
-vec3 AXIS_Z = {0.0f, 0.0f, 1.0f};
-
 typedef struct
 {
     RGSS_Renderable base;
@@ -82,7 +80,7 @@ void RGSS_Entity_Deinit(RGSS_Entity *entity)
     }
 }
 
-static void RGSS_Renderable_Init(RGSS_Renderable *obj)
+void RGSS_Renderable_Init(RGSS_Renderable *obj)
 {
     obj->opacity = 1.0f;
     obj->visible = true;
@@ -104,52 +102,52 @@ static VALUE RGSS_Entity_Alloc(VALUE klass)
     return Data_Wrap_Struct(klass, NULL, RGSS_Entity_Free, entity);
 }
 
-static VALUE RGSS_Entity_GetX(VALUE self)
+VALUE RGSS_Entity_GetX(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     return INT2NUM((int)roundf(entity->position[0]));
 }
 
-static VALUE RGSS_Entity_SetX(VALUE self, VALUE value)
+VALUE RGSS_Entity_SetX(VALUE self, VALUE value)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     entity->position[0] = NUM2FLT(value);
     return self;
 }
 
-static VALUE RGSS_Entity_GetY(VALUE self)
+VALUE RGSS_Entity_GetY(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     return INT2NUM((int)roundf(entity->position[1]));
 }
 
-static VALUE RGSS_Entity_SetY(VALUE self, VALUE value)
+VALUE RGSS_Entity_SetY(VALUE self, VALUE value)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     entity->position[1] = NUM2FLT(value);
     return self;
 }
 
-static VALUE RGSS_Entity_GetZ(VALUE self)
+VALUE RGSS_Entity_GetZ(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     return INT2NUM(entity->depth);
 }
 
-static VALUE RGSS_Entity_SetZ(VALUE self, VALUE value)
+VALUE RGSS_Entity_SetZ(VALUE self, VALUE value)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     entity->depth = NUM2INT(value);
     return self;
 }
 
-static VALUE RGSS_Entity_GetLocation(VALUE self)
+VALUE RGSS_Entity_GetLocation(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     return RGSS_Point_New((int)roundf(entity->position[0]), (int)roundf(entity->position[1]));
 }
 
-static VALUE RGSS_Entity_SetLocation(VALUE self, VALUE point)
+VALUE RGSS_Entity_SetLocation(VALUE self, VALUE point)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     int *ivec = DATA_PTR(point);
@@ -158,7 +156,7 @@ static VALUE RGSS_Entity_SetLocation(VALUE self, VALUE point)
     return point;
 }
 
-static VALUE RGSS_Entity_Update(VALUE self, VALUE delta)
+VALUE RGSS_Entity_Update(VALUE self, VALUE delta)
 {
     RGSS_Entity *entity = DATA_PTR(self);
 
@@ -175,20 +173,20 @@ static VALUE RGSS_Entity_Update(VALUE self, VALUE delta)
     vec3 pivot;
     glm_vec3_add(entity->pivot, entity->position, pivot);
 
-    glm_rotate_atm(entity->model, pivot, entity->angle, AXIS_Z);
+    glm_rotate_atm(entity->model, pivot, entity->angle, RGSS_AXIS_Z);
     glm_translate(entity->model, entity->position);
     glm_scale(entity->model, scale);
 
     return self;
 }
 
-static VALUE RGSS_Entity_GetModel(VALUE self)
+VALUE RGSS_Entity_GetModel(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     return Data_Wrap_Struct(rb_cMat4, NULL, RUBY_NEVER_FREE, entity->model);
 }
 
-static VALUE RGSS_Entity_SetModel(VALUE self, VALUE model)
+VALUE RGSS_Entity_SetModel(VALUE self, VALUE model)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     if (RTEST(model))
@@ -203,13 +201,13 @@ static VALUE RGSS_Entity_SetModel(VALUE self, VALUE model)
     return model;
 }
 
-static VALUE RGSS_Entity_GetPosition(VALUE self)
+VALUE RGSS_Entity_GetPosition(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     return RGSS_Vec2_New(entity->position[0], entity->position[1]);
 }
 
-static VALUE RGSS_Entity_SetPosition(VALUE self, VALUE value)
+VALUE RGSS_Entity_SetPosition(VALUE self, VALUE value)
 {
     RGSS_Entity *entity = DATA_PTR(self);
 
@@ -220,13 +218,13 @@ static VALUE RGSS_Entity_SetPosition(VALUE self, VALUE value)
     return value;
 }
 
-static VALUE RGSS_Entity_GetVelocity(VALUE self)
+VALUE RGSS_Entity_GetVelocity(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     return RGSS_Vec2_New(entity->velocity[0], entity->velocity[1]);
 }
 
-static VALUE RGSS_Entity_SetVelocity(VALUE self, VALUE value)
+VALUE RGSS_Entity_SetVelocity(VALUE self, VALUE value)
 {
     RGSS_Entity *entity = DATA_PTR(self);
 
@@ -237,13 +235,13 @@ static VALUE RGSS_Entity_SetVelocity(VALUE self, VALUE value)
     return value;
 }
 
-static VALUE RGSS_Entity_GetScale(VALUE self)
+VALUE RGSS_Entity_GetScale(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     return RGSS_Vec2_New(entity->scale[0], entity->scale[1]);
 }
 
-static VALUE RGSS_Entity_SetScale(VALUE self, VALUE value)
+VALUE RGSS_Entity_SetScale(VALUE self, VALUE value)
 {
     RGSS_Entity *entity = DATA_PTR(self);
 
@@ -254,13 +252,13 @@ static VALUE RGSS_Entity_SetScale(VALUE self, VALUE value)
     return value;
 }
 
-static VALUE RGSS_Entity_GetPivot(VALUE self)
+VALUE RGSS_Entity_GetPivot(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     return RGSS_Vec2_New(entity->pivot[0], entity->pivot[1]);
 }
 
-static VALUE RGSS_Entity_SetPivot(VALUE self, VALUE value)
+VALUE RGSS_Entity_SetPivot(VALUE self, VALUE value)
 {
     RGSS_Entity *entity = DATA_PTR(self);
 
@@ -271,13 +269,13 @@ static VALUE RGSS_Entity_SetPivot(VALUE self, VALUE value)
     return value;
 }
 
-static VALUE RGSS_Entity_GetSize(VALUE self)
+VALUE RGSS_Entity_GetSize(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     return RGSS_Size_New((int)roundf(entity->size[0]), (int)roundf(entity->size[1]));
 }
 
-static VALUE RGSS_Entity_SetSize(VALUE self, VALUE value)
+VALUE RGSS_Entity_SetSize(VALUE self, VALUE value)
 {
     RGSS_Entity *entity = DATA_PTR(self);
 
@@ -291,20 +289,20 @@ static VALUE RGSS_Entity_SetSize(VALUE self, VALUE value)
     return value;
 }
 
-static VALUE RGSS_Entity_GetAngle(VALUE self)
+VALUE RGSS_Entity_GetAngle(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     return DBL2NUM(entity->angle * (180.0 / M_PI));
 }
 
-static VALUE RGSS_Entity_SetAngle(VALUE self, VALUE degrees)
+VALUE RGSS_Entity_SetAngle(VALUE self, VALUE degrees)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     entity->angle = NUM2DBL(degrees) * (M_PI / 180.0);
     return degrees;
 }
 
-static VALUE RGSS_Entity_GetBounds(VALUE self)
+VALUE RGSS_Entity_GetBounds(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     int *rect = xmalloc(sizeof(int) * 4);
@@ -317,7 +315,7 @@ static VALUE RGSS_Entity_GetBounds(VALUE self)
     return Data_Wrap_Struct(rb_cRect, NULL, RUBY_DEFAULT_FREE, rect);
 }
 
-static VALUE RGSS_Entity_Rotate(int argc, VALUE *argv, VALUE self)
+VALUE RGSS_Entity_Rotate(int argc, VALUE *argv, VALUE self)
 {
     VALUE degrees, pivot;
     rb_scan_args(argc, argv, "11", &degrees, &pivot);
@@ -341,19 +339,19 @@ static VALUE RGSS_Entity_Rotate(int argc, VALUE *argv, VALUE self)
     return self;
 }
 
-static VALUE RGSS_Entity_GetWidth(VALUE self)
+VALUE RGSS_Entity_GetWidth(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     return INT2NUM((int)roundf(entity->size[0]));
 }
 
-static VALUE RGSS_Entity_GetHeight(VALUE self)
+VALUE RGSS_Entity_GetHeight(VALUE self)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     return INT2NUM((int)roundf(entity->size[1]));
 }
 
-static VALUE RGSS_Entity_SetWidth(VALUE self, VALUE value)
+VALUE RGSS_Entity_SetWidth(VALUE self, VALUE value)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     entity->size[0] = NUM2FLT(value);
@@ -363,7 +361,7 @@ static VALUE RGSS_Entity_SetWidth(VALUE self, VALUE value)
     return value;
 }
 
-static VALUE RGSS_Entity_SetHeight(VALUE self, VALUE value)
+VALUE RGSS_Entity_SetHeight(VALUE self, VALUE value)
 {
     RGSS_Entity *entity = DATA_PTR(self);
     entity->size[1] = NUM2FLT(value);

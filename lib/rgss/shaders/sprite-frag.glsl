@@ -18,7 +18,7 @@ void main() {
     result = texture(image, uv);
 
     // Applu hue shift
-    float angle = cos(radians(hue));
+    float angle = cos(radians(hue)); // Source is already in radians
     vec3 rgb = vec3(result.rgb * angle + cross(k, result.rgb) * sin(radians(hue)) + k * dot(k, result.rgb) * (1.0 - angle));
     result = vec4(rgb, result.a);
 

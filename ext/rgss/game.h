@@ -69,7 +69,7 @@ typedef struct RGSS_Entity
     vec3 size;
 } RGSS_Entity;
 
-typedef struct
+typedef struct RGSS_Renderable
 {
     RGSS_Entity entity;
     GLuint vao, vbo, ebo;

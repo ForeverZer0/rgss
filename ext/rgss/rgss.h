@@ -201,6 +201,9 @@ static inline float RGSS_Rand()
     return (float) rand() / RAND_MAX;
 }
 
+float RGSS_FastSin(float degrees);
+#define RGSS_FastCos(degrees) RGSS_FastSin((degrees) + 90.0f)
+
 /**
  * @brief Converts a Ruby VALUE object into a C pointer, accepting multiple Ruby types.
  *

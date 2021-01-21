@@ -2,7 +2,7 @@
 
 layout(location = 0) in vec4 vertex;
 layout(location = 1) in vec4 quad; // Position of the center of the particule and size of the square
-layout(location = 2) in vec4 color; // Position of the center of the particule and size of the square
+layout(location = 2) in vec4 rgba; // Position of the center of the particule and size of the square
 
 layout (std140) uniform ortho
 {
@@ -26,5 +26,5 @@ void main()
     gl_Position = projection * model * vec4(vertex.xy, 0.0, 1.0);
 
     uv = vertex.zw;
-    vertex_color = color;
+    vertex_color = rgba;
 }

@@ -109,9 +109,9 @@ GLuint RGSS_CreateProgram(GLuint vertex, GLuint fragment, GLuint geometry)
     if (index != GL_INVALID_INDEX)
     {
         glUniformBlockBinding(program, index, 0);
-        RGSS_LogDebug("Shader program bound to projection UBO at index %d", index);
+        RGSS_LogDebug("Shader (ID:%u) bound to projection UBO at index %d", program, index);
     }
-
+    RGSS_LogDebug("Shader (ID:%u) compilation and linkage completed successfully", program);
     return program;
 }
 

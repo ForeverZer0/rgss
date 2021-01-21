@@ -5,6 +5,9 @@
 #include "rgss.h"
 
 typedef struct RGSS_Entity RGSS_Entity;
+typedef struct RGSS_Renderable RGSS_Renderable;
+
+static vec3 RGSS_AXIS_Z = {0.0f, 0.0f, 1.0f};
 
 /**
  * @brief A set of vertices for drawing a textured quad with two triangles using an element buffer.
@@ -123,6 +126,8 @@ void RGSS_Entity_Init(RGSS_Entity *entity);
 
 void RGSS_Entity_Deinit(RGSS_Entity *entity);
 
+void RGSS_Renderable_Init(RGSS_Renderable *obj);
+
 
 static inline void RGSS_ValueToVec3(VALUE value, vec3 result)
 {
@@ -154,5 +159,36 @@ static inline void RGSS_ValueToVec3(VALUE value, vec3 result)
         rb_raise(rb_eTypeError, "%s is not a Point, Size, Vec2, or Vec3", CLASS_NAME(value));
     }
 }
+
+VALUE RGSS_Entity_GetX(VALUE self);
+VALUE RGSS_Entity_SetX(VALUE self, VALUE value);
+VALUE RGSS_Entity_GetY(VALUE self);
+VALUE RGSS_Entity_SetY(VALUE self, VALUE value);
+VALUE RGSS_Entity_GetZ(VALUE self);
+VALUE RGSS_Entity_SetZ(VALUE self, VALUE value);
+VALUE RGSS_Entity_GetLocation(VALUE self);
+VALUE RGSS_Entity_SetLocation(VALUE self, VALUE point);
+VALUE RGSS_Entity_Update(VALUE self, VALUE delta);
+VALUE RGSS_Entity_GetModel(VALUE self);
+VALUE RGSS_Entity_SetModel(VALUE self, VALUE model);
+VALUE RGSS_Entity_GetPosition(VALUE self);
+VALUE RGSS_Entity_SetPosition(VALUE self, VALUE value);
+VALUE RGSS_Entity_GetVelocity(VALUE self);
+VALUE RGSS_Entity_SetVelocity(VALUE self, VALUE value);
+VALUE RGSS_Entity_GetScale(VALUE self);
+VALUE RGSS_Entity_SetScale(VALUE self, VALUE value);
+VALUE RGSS_Entity_GetPivot(VALUE self);
+VALUE RGSS_Entity_SetPivot(VALUE self, VALUE value);
+VALUE RGSS_Entity_GetSize(VALUE self);
+VALUE RGSS_Entity_SetSize(VALUE self, VALUE value);
+VALUE RGSS_Entity_GetAngle(VALUE self);
+VALUE RGSS_Entity_SetAngle(VALUE self, VALUE degrees);
+VALUE RGSS_Entity_GetBounds(VALUE self);
+VALUE RGSS_Entity_Rotate(int argc, VALUE *argv, VALUE self);
+VALUE RGSS_Entity_GetWidth(VALUE self);
+VALUE RGSS_Entity_GetHeight(VALUE self);
+VALUE RGSS_Entity_SetWidth(VALUE self, VALUE value);
+VALUE RGSS_Entity_SetHeight(VALUE self, VALUE value);
+
 
 #endif /* RGSS_GRAPHICS_H */

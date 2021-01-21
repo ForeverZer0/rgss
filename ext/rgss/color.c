@@ -391,6 +391,19 @@ static VALUE RGSS_Color_Inverse(int argc, VALUE *argv, VALUE self)
     return Data_Wrap_Struct(CLASS_OF(self), NULL, free, result);
 }
 
+static VALUE RGSS_Color_Compare(VALUE self, VALUE other)
+{
+    if (rb_obj_is_kind_of(other, rb_cColor) != Qtrue)
+        rb_raise(rb_eTypeError, "cannot compare %s with Color", CLASS_NAME(other));
+
+    // TODO: This is total nonsense "comparing" color, but is necessary to implement to use with ranges.
+    float mag1 = glm_vec4_norm2(DATA_PTR(self));
+    float mag2 = glm_vec4_norm2(DATA_PTR(other));
+    if (mag1 < mag2)
+        return INT2NUM(-1);
+    return INT2NUM(mag1 > mag2);
+}
+
 void RGSS_Init_ColorAndTone(VALUE parent)
 {
     rb_cColor = rb_define_class_under(parent, "Color", rb_cObject);
@@ -421,6 +434,7 @@ void RGSS_Init_ColorAndTone(VALUE parent)
     rb_define_method0(rb_cColor, "brightness", RGSS_Color_GetBrightness, 0);
     rb_define_method0(rb_cColor, "hsl", RGSS_Color_GetHSL, 0);
     rb_define_method0(rb_cColor, "hsb", RGSS_Color_GetHSB, 0);
+    rb_define_method1(rb_cColor, "<=>", RGSS_Color_Compare, 1);
 
     rb_define_alias(rb_cColor, "multiply", "*");
     rb_define_alias(rb_cColor, "red", "r");

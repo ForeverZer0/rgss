@@ -12,7 +12,6 @@ ID RGSS_ID_RENDER;
 ID RGSS_ID_UPDATE;
 ID RGSS_ID_ADD;
 
-
 void RGSS_Log(RGSS_LOG_LEVEL level, const char *format, ...)
 {
     if (!RTEST(RGSS_LOGGER))
@@ -39,6 +38,22 @@ static VALUE RGSS_Radians(VALUE math, VALUE degrees)
 static VALUE RGSS_Degrees(VALUE math, VALUE radians)
 {
     return DBL2NUM(NUM2DBL(radians) * (180.0 / M_PI));
+}
+
+#define LOOKUPS_PER_DEGREE 10
+#define NUM_LOOKUP_VALUES (360 * LOOKUPS_PER_DEGREE)
+#define LOOKUP_PRECISION (1.0f / LOOKUPS_PER_DEGREE)
+float RGSS_SIN_LOOKUP[NUM_LOOKUP_VALUES];
+
+inline float RGSS_FastSin(float degrees)
+{
+   // Normalize to 0..360 (i.e. 0..2PI)
+    degrees = fmod(degrees, 360.0f);
+    if(degrees < 0.0f) 
+        degrees += 360.0f;
+
+    int index = (int)(degrees * LOOKUPS_PER_DEGREE);
+    return RGSS_SIN_LOOKUP[index % NUM_LOOKUP_VALUES];
 }
 
 char *RGSS_ReadFileDescriptorText(int fd)
@@ -176,4 +191,16 @@ void Init_rgss(void)
     RGSS_ID_RENDER = rb_intern("render");
     RGSS_ID_UPDATE = rb_intern("update");
     RGSS_ID_ADD = rb_intern("add");
+
+    for(int i = 0; i < NUM_LOOKUP_VALUES; i++)
+    {
+        float angle = (float)i / LOOKUPS_PER_DEGREE;
+        RGSS_SIN_LOOKUP[i] = sinf(glm_rad(angle + LOOKUP_PRECISION));
+    }
+
+    // Ensure the cardinal directions are 100% accurate.
+    for (int i = 0; i <= 270; i += 90)
+    {
+        RGSS_SIN_LOOKUP[i * LOOKUPS_PER_DEGREE] = sinf(glm_rad(i));
+    }
 }
