@@ -1,6 +1,7 @@
-#include "rgss.h"
-#include "ruby/io.h"
+#include <ruby/io.h>
+#include <stdint.h>
 #include <time.h>
+#include "rgss.h"
 
 VALUE rb_mRGSS;
 VALUE rb_eRGSSError;
@@ -12,6 +13,40 @@ ID RGSS_ID_RENDER;
 ID RGSS_ID_UPDATE;
 ID RGSS_ID_ADD;
 
+struct xoshiro256ss_state
+{
+    uint64_t s[4];
+};
+
+struct xoshiro256ss_state RGSS_RAND_STATE;
+
+static inline uint64_t rol64(uint64_t x, int k)
+{
+    return (x << k) | (x >> (64 - k));
+}
+
+uint64_t xoshiro256ss(struct xoshiro256ss_state *state)
+{
+    uint64_t *s = state->s;
+    uint64_t const result = rol64(s[1] * 5, 7) * 9;
+    uint64_t const t = s[1] << 17;
+
+    s[2] ^= s[0];
+    s[3] ^= s[1];
+    s[1] ^= s[2];
+    s[0] ^= s[3];
+
+    s[2] ^= t;
+    s[3] = rol64(s[3], 45);
+
+    return result;
+}
+
+static inline double to_double(uint64_t x) {
+    const union { uint64_t i; double d; } u = { .i = UINT64_C(0x3FF) << 52 | x >> 12 };
+    return u.d - 1.0;
+}
+
 void RGSS_Log(RGSS_LOG_LEVEL level, const char *format, ...)
 {
     if (!RTEST(RGSS_LOGGER))
@@ -22,7 +57,7 @@ void RGSS_Log(RGSS_LOG_LEVEL level, const char *format, ...)
     VALUE msg = rb_vsprintf(format, args);
     va_end(args);
 
-    rb_funcall(RGSS_LOGGER, RGSS_ID_ADD, 2, INT2NUM(level), msg);    
+    rb_funcall(RGSS_LOGGER, RGSS_ID_ADD, 2, INT2NUM(level), msg);
 }
 
 VALUE RGSS_Handle_Alloc(VALUE klass)
@@ -30,26 +65,50 @@ VALUE RGSS_Handle_Alloc(VALUE klass)
     return Data_Wrap_Struct(klass, NULL, RUBY_NEVER_FREE, NULL);
 }
 
-static VALUE RGSS_Radians(VALUE math, VALUE degrees)
+static VALUE RGSS_Radians(VALUE rgss, VALUE degrees)
 {
     return DBL2NUM(NUM2DBL(degrees) * (M_PI / 180.0));
 }
 
-static VALUE RGSS_Degrees(VALUE math, VALUE radians)
+static VALUE RGSS_Degrees(VALUE rgss, VALUE radians)
 {
     return DBL2NUM(NUM2DBL(radians) * (180.0 / M_PI));
 }
 
+inline float RGSS_Rand()
+{
+    uint64_t r = xoshiro256ss(&RGSS_RAND_STATE);
+    return (float) to_double(r);
+}
+
+static VALUE RGSS_Random(int argc, VALUE *argv, VALUE rgss)
+{
+    
+    if (argc == 0)
+        return DBL2NUM(to_double(xoshiro256ss(&RGSS_RAND_STATE)));
+
+    if (argc != 2)
+        rb_raise(rb_eArgError, "wrong number of arguments (given %d, expected 0 or 2)", argc);
+
+    int64_t lower = NUM2LL(argv[0]);
+    int64_t upper = NUM2LL(argv[1]);
+    if (lower > upper)
+        rb_raise(rb_eArgError, "upper bound cannot be less than lower bound");
+
+    int64_t n = (int64_t)((xoshiro256ss(&RGSS_RAND_STATE) % (upper - lower + 1)) + lower);
+    return LL2NUM(n);
+}
+
 #define LOOKUPS_PER_DEGREE 10
-#define NUM_LOOKUP_VALUES (360 * LOOKUPS_PER_DEGREE)
-#define LOOKUP_PRECISION (1.0f / LOOKUPS_PER_DEGREE)
+#define NUM_LOOKUP_VALUES  (360 * LOOKUPS_PER_DEGREE)
+#define LOOKUP_PRECISION   (1.0f / LOOKUPS_PER_DEGREE)
 float RGSS_SIN_LOOKUP[NUM_LOOKUP_VALUES];
 
 inline float RGSS_FastSin(float degrees)
 {
-   // Normalize to 0..360 (i.e. 0..2PI)
+    // Normalize to 0..360 (i.e. 0..2PI)
     degrees = fmod(degrees, 360.0f);
-    if(degrees < 0.0f) 
+    if (degrees < 0.0f)
         degrees += 360.0f;
 
     int index = (int)(degrees * LOOKUPS_PER_DEGREE);
@@ -142,16 +201,57 @@ char *RGSS_ReadFileTextRB(VALUE source)
     return buffer;
 }
 
+inline void RGSS_ParseRect(int argc, VALUE *argv, RGSS_Rect *rect)
+{
+    switch (argc)
+    {
+        case 1:
+        {
+            if (rb_obj_is_kind_of(argv[0], rb_cRect) != Qtrue)
+                rb_raise(rb_eTypeError, "%s is not a Rect", CLASS_NAME(argv[0]));
+            memcpy(rect, DATA_PTR(argv[0]), sizeof(RGSS_Rect));
+            break;    
+        }
+        case 2:
+        {
+            if (rb_obj_is_kind_of(argv[0], rb_cIVec2) != Qtrue)
+                rb_raise(rb_eTypeError, "%s is not a IVec2", CLASS_NAME(argv[0]));
+            if (rb_obj_is_kind_of(argv[1], rb_cIVec2) != Qtrue)
+                rb_raise(rb_eTypeError, "%s is not a IVec2", CLASS_NAME(argv[1]));
+
+            memcpy(&rect->location, DATA_PTR(argv[0]), sizeof(RGSS_Point));
+            memcpy(&rect->size, DATA_PTR(argv[1]), sizeof(RGSS_Size));
+            break;
+        }
+        case 4:
+        {
+            rect->x = NUM2INT(argv[0]);
+            rect->y = NUM2INT(argv[1]);
+            rect->width = NUM2INT(argv[2]);
+            rect->height = NUM2INT(argv[3]);
+            break;
+        }
+    }
+}
+
 void Init_rgss(void)
 {
-    // TODO: Make seed configurable?
+    // Initialize state for RNG
+    // TODO: Dump/load seed
     time_t t;
-    srand((unsigned) time(&t));
+    srand((unsigned)time(&t));
+    RGSS_RAND_STATE.s[0] = (unsigned) rand();
+    RGSS_RAND_STATE.s[1] = (unsigned) rand();
+    RGSS_RAND_STATE.s[2] = (unsigned) rand();
+    RGSS_RAND_STATE.s[3] = (unsigned) rand();
+
+
     rb_mRGSS = rb_define_module("RGSS");
     rb_eRGSSError = rb_define_class_under(rb_mRGSS, "RGSSError", rb_eStandardError);
 
     rb_define_module_function1(rb_mRGSS, "degrees", RGSS_Degrees, 1);
     rb_define_module_function1(rb_mRGSS, "radians", RGSS_Radians, 1);
+    rb_define_module_functionm1(rb_mRGSS, "rand", RGSS_Random, -1);
 
     RGSS_Init_GL(rb_mRGSS);
     RGSS_Init_GLFW(rb_mRGSS);
@@ -192,7 +292,7 @@ void Init_rgss(void)
     RGSS_ID_UPDATE = rb_intern("update");
     RGSS_ID_ADD = rb_intern("add");
 
-    for(int i = 0; i < NUM_LOOKUP_VALUES; i++)
+    for (int i = 0; i < NUM_LOOKUP_VALUES; i++)
     {
         float angle = (float)i / LOOKUPS_PER_DEGREE;
         RGSS_SIN_LOOKUP[i] = sinf(glm_rad(angle + LOOKUP_PRECISION));

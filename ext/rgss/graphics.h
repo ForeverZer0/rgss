@@ -7,6 +7,11 @@
 typedef struct RGSS_Entity RGSS_Entity;
 typedef struct RGSS_Renderable RGSS_Renderable;
 
+#define RGSS_GRAPHICS RGSS_GAME.graphics
+
+/**
+ * @brief A unit vector for rotation around Z axis.
+ */
 static vec3 RGSS_AXIS_Z = {0.0f, 0.0f, 1.0f};
 
 /**
@@ -120,11 +125,20 @@ GLuint RGSS_CreateProgramFromSource(const char *vert_src, const char *frag_src, 
 GLuint RGSS_CreateProgramFromFile(const char *vert_path, const char *frag_path, const char *geom_path);
 
 /**
+ * @brief Initiializes the base enitity object for structures that utilize it.
  * 
+ * @param[out] entity A pointer to the structure to initialize.
+ * @note The RGSS_Entity structure must always be the first field in a structure.
  */
 void RGSS_Entity_Init(RGSS_Entity *entity);
 
+/**
+ * @brief Cleans up resources of a entity structure.
+ * 
+ * @param[in] entity A pointer to the structure to finalize.
+ */
 void RGSS_Entity_Deinit(RGSS_Entity *entity);
+
 
 void RGSS_Renderable_Init(RGSS_Renderable *obj);
 

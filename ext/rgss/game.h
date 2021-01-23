@@ -144,6 +144,16 @@ typedef struct
             GLint flash;
             GLint opacity;
         } shader;
+        struct
+        {
+            GLuint id;
+            GLint color;
+            GLint flash;
+            GLint tone;
+            GLint hue;
+            GLint opacity;
+            GLint textured;
+        } particle_shader;
     } graphics;
     struct
     {

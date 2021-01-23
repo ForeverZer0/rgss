@@ -431,6 +431,16 @@ void RGSS_Input_Init(GLFWwindow *window)
     RGSS_GAME.input.bindings = NULL;
     RGSS_GAME.input.cursor = NULL;
     RGSS_Input_Clear(rb_mInput);
+
+    char *mappings = getenv("SDL_GAMECONTROLLERCONFIG");
+    if (mappings != NULL)
+    {
+        RGSS_LogDebug("SDL_GAMECONTROLLERCONFIG environment variable found");
+        if (glfwUpdateGamepadMappings(mappings))
+            RGSS_LogInfo("Successfully updated gamepad mappings from environment");
+        else
+            RGSS_LogError("Faled to parse/update mappings from envoronment variable");
+    }
 }
 
 void RGSS_Input_Deinit(GLFWwindow *window)
@@ -530,8 +540,34 @@ static VALUE RGSS_Input_GetCursor(VALUE input)
     RGSS_ASSERT_GAME;
     double x, y;
     glfwGetCursorPos(RGSS_GAME.window, &x, &y);
-    return RGSS_Point_New((int) round(x), (int) round(y));
+
+
+    RGSS_Rect viewport = RGSS_GAME.graphics.viewport;
+    vec3 vec;
+    float cursor[3] = { (float) x, (viewport.height + (viewport.y * 2)) - y, 0 };
+    if (RGSS_GAME.graphics.viewport.x != 0)
+        cursor[1] = viewport.height - y;
+
+    float vp[4] = { viewport.x, viewport.y, viewport.width, viewport.height };
+    glm_unproject(cursor, RGSS_GAME.graphics.projection, vp, vec);
+    
+    // TODO: Cache this to not repeat for same frame?
+
+    return RGSS_Point_New((int) roundf(vec[0]), (int) roundf(vec[1]));
 }
+
+static VALUE RGSS_Input_HitTest(int argc, VALUE *argv, VALUE input)
+{
+    if (argc != 1 && argc != 2 && argc != 4)
+        rb_raise(rb_eArgError, "wrong number of arguments (given %d, expected 1, 2, or 4)");
+
+    RGSS_Rect rect;
+    RGSS_ParseRect(argc, argv, &rect); // TODO: Get rid of this
+    RGSS_Point *pnt = DATA_PTR(RGSS_Input_GetCursor(input));
+  
+    return RB_BOOL(rect.x <= pnt->x && pnt->x < rect.x + rect.width && rect.y <= pnt->y && pnt->y < rect.y + rect.height);
+}
+
 
 static VALUE RGSS_Input_SetCursorImage(int argc, VALUE *argv, VALUE input)
 {
@@ -592,6 +628,7 @@ void RGSS_Init_Input(VALUE parent)
     rb_define_singleton_method1(rb_mInput, "up?", RGSS_Input_IsUp, 1);
     rb_define_singleton_method0(rb_mInput, "scroll_x", RGSS_Input_GetScrollX, 0);
     rb_define_singleton_method0(rb_mInput, "scroll_y", RGSS_Input_GetScrollY, 0);
+    rb_define_singleton_methodm1(rb_mInput, "hit_test", RGSS_Input_HitTest, -1);
 
     VALUE singleton = rb_singleton_class(rb_mInput);
 

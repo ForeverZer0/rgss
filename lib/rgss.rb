@@ -1,44 +1,35 @@
-$RGSS_DEBUG = true
-p ENV['SDL_GAMECONTROLLERCONFIG']
+$RGSS_DEBUG = true # TODO
+
+require_relative 'rgss/version'
+require_relative 'rgss/log'
+require_relative 'rgss/rgss'
 
 module RGSS
-  require "logger"
 
-  Log = Logger.new(STDOUT)
-
-  Log.formatter = proc do |severity, datetime, progname, msg|
-    time = datetime.strftime("%H:%M:%S")
-    prefix = case severity
-      when "DEBUG" then "[\33[1;35mDEBUG\33[0m]"
-      when "INFO" then "[\33[1;32mINFO\33[0m] "
-      when "WARN" then "[\33[1;33mWARN\33[0m] "
-      when "ERROR" then "[\33[1;31mERROR\33[0m]"
-      when "FATAL" then "[\33[1;31mFATAL\33[0m]"
-      else "LOG"
-      end
-    "#{time} #{prefix} #{msg}\n"
-  end
-end
-
-require_relative "rgss/version"
-require_relative "rgss/rgss"
-
-
-
-module RGSS
+  RESOURCE_DIR = File.join(__dir__, 'resources')
 
   module Game
-    SPEED = 8
 
     def self.update(delta)
-      $e.y -= SPEED if Input.press?(:UP)
-      $e.y += SPEED if Input.press?(:DOWN)
-      $e.x -= SPEED if Input.press?(:LEFT)
-      $e.x += SPEED if Input.press?(:RIGHT)
+      $e.y -= 10 if Input.press?(:UP)
+      $e.y += 10 if Input.press?(:DOWN)
+      $e.x -= 10 if Input.press?(:LEFT)
+      $e.x += 10 if Input.press?(:RIGHT)
       $e.z += 1 if Input.press?(:RAISE)
       $e.z -= 1 if Input.press?(:LOWER)
 
+      $v.update(delta)
       $e.update(delta)
+      $e.position = Input.cursor
+
+      if Input.trigger?(:CLICK)
+        p Input.hit_test(32, 32, 32, 32)
+      end
+
+      if Input.trigger?(:CONFIRM)
+        $e.paused? ? $e.resume : $e.pause
+        puts "PAUSED: #{$e.paused?}"
+      end
 
       if Input.trigger?(:FULLSCREEN)
         p Graphics.fps
@@ -56,7 +47,11 @@ module RGSS
   # Graphics.back_color = Color::DARK_SLATE_GRAY
   
 
-  Game.icon = "/storage/images/anvil.png"
+  Game.icon = File.join(RESOURCE_DIR, 'ruby.png')
+  Input.cursor_image(File.join(RESOURCE_DIR, 'cursor.png'))
+
+
+  Input.bind(:CLICK, [], Input::MOUSE_BUTTON_LEFT)
 
   Input.bind(:UP, [Input::KEY_W, Input::KEY_UP])
   Input.bind(:LEFT, [Input::KEY_A, Input::KEY_LEFT])
@@ -85,27 +80,28 @@ regular <b>bold</b> <i>italic</i> <u>underline</u> <span overline="single">overl
 <span foreground=\"#FFCC00\"> colored</span>
 EOS
 
-
+  $v = Viewport.new(200, 200, 200, 200)
 
   $e = Emitter.new(20000, nil) do |e|
+    e.velocity = vec3(0, 0, -0.00001)
+    # e.opacity = 0.5
     # e.texture = Texture.load("/home/eric/Desktop/smoke.png")
-    e.size = Size.new(1, 1)
+    e.size = (2..6)
     e.position = vec2(1024 / 2, 768 / 2)
-    # e.velocity = vec3(3.0, -10.0, 1.0)
-    e.radius = 64
-    # e.friction = 3
-    e.rate = 30
-    e.gravity = 10
-    e.force = 120
-    e.angular_velocity = vec2(5)
-    # e.gravity = Emitter::EARTH_GRAVITY * 32
-    e.wind = 40
-    e.fade = 50
+    e.radius = 2
+    e.rate = 5
+    e.direction = nil
+    e.force = 100
+    e.gravity = -80
+    # e.wind = -50
+    e.friction = 1
+
+    e.growth = 2.1
+    # e.rotation = 360
+    e.fade = 10
     e.lifespan = 30 * 8
-    # e.zoom = 5.5
-    # e.fade = 5.5
-    # e.spectrum = [Color::YELLOW, Color::ORANGE, Color::RED, Color::WHITE]
-    # e.scale = vec3(0.1, 0.1, 0)
+    # e.spectrum = (Color::GRAY..Color::WHITE)
+    # e.scale = vec3(0.3, 0.3, 0)
   end
 
 
@@ -117,6 +113,7 @@ EOS
     Game.main(30)
   rescue
     Log.fatal($!.to_s)
+    raise $1
   end
   Game.terminate
 end

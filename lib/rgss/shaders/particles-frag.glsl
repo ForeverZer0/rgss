@@ -10,7 +10,7 @@ uniform int textured;
 uniform vec4 color;
 uniform vec4 tone;
 uniform vec4 flash;
-uniform float opacity = 1.0;
+uniform float opacity;
 uniform float hue;
 
 const vec3 k = vec3(0.57735, 0.57735, 0.57735);
@@ -24,6 +24,9 @@ void main() {
 	}
 	else
 	{
+        float l = length(uv - vec2(0.5, 0.5));
+        if (l > 0.5)
+            discard;
 		// Use the output color from the vertex shader if not texture.
 		result = vertex_color;
 	}

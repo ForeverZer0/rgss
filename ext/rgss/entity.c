@@ -18,7 +18,12 @@ VALUE rb_cPlane;
 typedef struct
 {
     RGSS_Renderable base;
-    VALUE texture;
+    struct 
+    {
+        VALUE value;
+        GLuint id;
+        vec2 size;
+    } texture;
     RGSS_Rect src_rect;
     VALUE viewport;
 } RGSS_Sprite;
@@ -35,7 +40,12 @@ typedef struct {
 
 typedef struct {
     RGSS_Renderable base;
-    VALUE texture;
+    struct 
+    {
+        VALUE value;
+        GLuint id;
+        vec2 size;
+    } texture;
     VALUE viewport;
     GLuint sampler;
     vec2 zoom;
@@ -159,8 +169,6 @@ VALUE RGSS_Entity_SetLocation(VALUE self, VALUE point)
 VALUE RGSS_Entity_Update(VALUE self, VALUE delta)
 {
     RGSS_Entity *entity = DATA_PTR(self);
-
-    // TODO: Set flag, only change when necessary?
 
     vec3 scale;
     glm_vec3_mul(entity->scale, entity->size, scale);
@@ -770,15 +778,14 @@ static VALUE RGSS_Renderable_SetFlip(VALUE self, VALUE flip)
 static VALUE RGSS_Sprite_UpdateVertices(VALUE self)
 {
     RGSS_Sprite *sprite = DATA_PTR(self);
-    RGSS_Texture *tex = RTEST(sprite->texture) ? DATA_PTR(sprite->texture) : NULL;
-    if (tex == NULL)
+    if (sprite->texture.id == GL_NONE)
         return Qnil;
 
     GLfloat l, t, r, b, temp;
-    l = (GLfloat) sprite->src_rect.x / (GLfloat) tex->width;
-    t = (GLfloat) sprite->src_rect.y / (GLfloat) tex->height;
-    r = (GLfloat) sprite->src_rect.width / (GLfloat) tex->width;
-    b = (GLfloat) sprite->src_rect.height / (GLfloat) tex->height;
+    l = (GLfloat) sprite->src_rect.x / sprite->texture.size[0];
+    t = (GLfloat) sprite->src_rect.y / sprite->texture.size[1];
+    r = (GLfloat) sprite->src_rect.width /  sprite->texture.size[0];
+    b = (GLfloat) sprite->src_rect.height / sprite->texture.size[1];
 
     if (RGSS_HAS_FLAG(sprite->base.flip, RGSS_FLIP_X))
     {
@@ -839,25 +846,29 @@ static VALUE RGSS_Sprite_SetSrcRect(VALUE self, VALUE rect)
 static VALUE RGSS_Sprite_GetTexture(VALUE self)
 {
     RGSS_Sprite *sprite = DATA_PTR(self);
-    return sprite->texture;
+    return sprite->texture.value;
 }
 
 static VALUE RGSS_Sprite_SetTexture(VALUE self, VALUE texture)
 {
     RGSS_Sprite *sprite = DATA_PTR(self);
-    sprite->texture = texture;
+    sprite->texture.value = texture;
 
     if (NIL_P(texture))
     {
         glm_vec3_zero(sprite->base.entity.size);
+        glm_vec2_zero(sprite->texture.size);
+        sprite->texture.id = GL_NONE;
         sprite->src_rect = (RGSS_Rect) { 0, 0, 0, 0 };
     }
     else
     {
         RGSS_Texture *tex = DATA_PTR(texture);
+        sprite->texture.id = tex->id;
         sprite->src_rect = (RGSS_Rect) { 0, 0, tex->width, tex->height };
         sprite->base.entity.size[0] = (float) tex->width;
         sprite->base.entity.size[1] = (float) tex->height;
+        glm_vec2_copy(sprite->base.entity.size, sprite->texture.size);
         RGSS_Sprite_UpdateVertices(self);
     }
 }
@@ -889,7 +900,7 @@ static VALUE RGSS_Sprite_Initialize(int argc, VALUE *argv, VALUE self)
 static void RGSS_Sprite_Mark(void *data)
 {
     RGSS_Sprite *sprite = data;
-    rb_gc_mark(sprite->texture);
+    rb_gc_mark(sprite->texture.value);
     rb_gc_mark(sprite->viewport);
 }
 
@@ -898,25 +909,21 @@ static VALUE RGSS_Sprite_Alloc(VALUE klass)
     RGSS_Sprite *sprite = ALLOC(RGSS_Sprite);
     memset(sprite, 0, sizeof(RGSS_Sprite));
     RGSS_Entity_Init(&sprite->base.entity);
-    sprite->texture = Qnil;
-    sprite->texture = Qnil;
+    sprite->texture.value = Qnil;
+    sprite->viewport = Qnil;
     return Data_Wrap_Struct(klass, RGSS_Sprite_Mark, RGSS_Renderable_Free, sprite);
 }
 
 static VALUE RGSS_Sprite_Render(VALUE self, VALUE alpha)
 {
     RGSS_Sprite *sprite = DATA_PTR(self);
-    if (NIL_P(sprite->texture) || !sprite->base.visible || sprite->base.opacity < FLT_EPSILON)
+    if (sprite->texture.id == GL_NONE || !sprite->base.visible || sprite->base.opacity < FLT_EPSILON)
         return Qnil;
 
     rb_call_super(1, &alpha);
 
-    RGSS_Texture *tex = DATA_PTR(sprite->texture);
-    if (tex->id == 0)
-        rb_raise(rb_eRuntimeError, "disposed texture");
-
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex->id);
+    glBindTexture(GL_TEXTURE_2D, sprite->texture.id);
     glBindVertexArray(sprite->base.vao);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_BYTE, NULL);
     glBindVertexArray(GL_NONE);
@@ -1011,9 +1018,9 @@ static VALUE RGSS_Viewport_Initialize(int argc, VALUE *argv, VALUE self)
         }
         case 2:
         {
-            if (rb_obj_is_kind_of(x, rb_cPoint) != Qtrue)
+            if (rb_obj_is_kind_of(x, rb_cIVec2) != Qtrue)
                 rb_raise(rb_eTypeError, "%s is not a Point", CLASS_NAME(x));
-            if (rb_obj_is_kind_of(y, rb_cSize) != Qtrue)
+            if (rb_obj_is_kind_of(y, rb_cIVec2) != Qtrue)
                 rb_raise(rb_eTypeError, "%s is not a Size", CLASS_NAME(y));
 
             memcpy(&rect.location, DATA_PTR(x), sizeof(RGSS_Point));
@@ -1054,17 +1061,9 @@ static VALUE RGSS_Viewport_Initialize(int argc, VALUE *argv, VALUE self)
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vp->texture, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, GL_NONE);
 
-    GLfloat vertices[VERTICES_COUNT] = 
-    {
-        0.0f, 1.0f, 0.0f, 1.0f, // Bottom-Left
-        1.0f, 0.0f, 1.0f, 0.0f, // Top-Right
-        0.0f, 0.0f, 0.0f, 0.0f, // Top-Left
-        1.0f, 1.0f, 1.0f, 1.0f, // Bottom-Right
-    };
-
     VALUE ary = rb_ary_new_capa(VERTICES_COUNT);
     for (long i = 0; i < VERTICES_COUNT; i++)
-        rb_ary_store(ary, i, DBL2NUM(vertices[i]));
+        rb_ary_store(ary, i, DBL2NUM(RGSS_QUAD_VERTICES[i]));
 
     VALUE args[3] = { ary, Qnil, INT2NUM(GL_STATIC_DRAW) };
     RGSS_Renderable_VertexSetup(3, args, self);
@@ -1168,7 +1167,7 @@ static VALUE RGSS_Viewport_SetBackColor(VALUE self, VALUE color)
 static void RGSS_Plane_Mark(void *data)
 {
     RGSS_Plane *plane = data;
-    rb_gc_mark(plane->texture);
+    rb_gc_mark(plane->texture.value);
     rb_gc_mark(plane->viewport);
 }
 
@@ -1177,7 +1176,7 @@ static VALUE RGSS_Plane_Alloc(VALUE klass)
     RGSS_Plane *plane = ALLOC(RGSS_Plane);
     memset(plane, 0, sizeof(RGSS_Plane));
     RGSS_Entity_Init(&plane->base.entity);
-    plane->texture = Qnil;
+    plane->texture.value = Qnil;
     plane->viewport = Qnil;
     return Data_Wrap_Struct(klass, RGSS_Plane_Mark, RGSS_Renderable_Free, plane);
 }
@@ -1194,11 +1193,16 @@ static VALUE RGSS_Plane_Dispose(VALUE self)
     return Qnil;
 }
 
+static VALUE RGSS_Plane_GetViewport(VALUE self)
+{
+    RGSS_Plane *plane = DATA_PTR(self);
+    return plane->viewport;
+}
+
 static VALUE RGSS_Plane_UpdateVertices(VALUE self)
 {
     RGSS_Plane *plane = DATA_PTR(self);
-    RGSS_Texture *tex = RTEST(plane->texture) ? DATA_PTR(plane->texture) : NULL;
-    if (tex == NULL)
+    if (plane->texture.id == GL_NONE)
         return Qnil;
 
     GLfloat l, t, r, b;
@@ -1211,7 +1215,7 @@ static VALUE RGSS_Plane_UpdateVertices(VALUE self)
     else
     {
         l = (plane->origin[0] / plane->base.entity.size[0]) * plane->zoom[0];
-        r = l + ((plane->base.entity.size[0] / (GLfloat) tex->width) * plane->zoom[0]);
+        r = l + ((plane->base.entity.size[0] / plane->texture.size[0]) * plane->zoom[0]);
         if (RGSS_HAS_FLAG(plane->base.flip, RGSS_FLIP_X))
         {
             GLfloat temp_l = l;
@@ -1228,7 +1232,7 @@ static VALUE RGSS_Plane_UpdateVertices(VALUE self)
     else
     {
         t = (plane->origin[1] / plane->base.entity.size[1]) * plane->zoom[1];
-        b = t + ((plane->base.entity.size[1] / (GLfloat) tex->width) * plane->zoom[1]);
+        b = t + ((plane->base.entity.size[1] / plane->texture.size[1]) * plane->zoom[1]);
         if (RGSS_HAS_FLAG(plane->base.flip, RGSS_FLIP_Y))
         {
             GLfloat temp_t = t;
@@ -1255,23 +1259,27 @@ static VALUE RGSS_Plane_UpdateVertices(VALUE self)
 static VALUE RGSS_Plane_GetTexture(VALUE self)
 {
     RGSS_Plane *plane = DATA_PTR(self);
-    return plane->texture;
+    return plane->texture.value;
 }
 
 static VALUE RGSS_Plane_SetTexture(VALUE self, VALUE texture)
 {
     RGSS_Plane *plane = DATA_PTR(self);
-    plane->texture = texture;
+    plane->texture.value = texture;
 
     if (NIL_P(texture))
     {
         glm_vec3_zero(plane->base.entity.size);
+        glm_vec2_zero(plane->texture.size);
+        plane->texture.id = GL_NONE;
     }
     else
     {
         RGSS_Texture *tex = DATA_PTR(texture);
+        plane->texture.id = tex->id;
         plane->base.entity.size[0] = (float) tex->width;
         plane->base.entity.size[1] = (float) tex->height;
+        glm_vec2_copy(plane->base.entity.size, plane->texture.size);
         RGSS_Plane_UpdateVertices(self);
     }
 }
@@ -1387,18 +1395,14 @@ static VALUE RGSS_Plane_Render(VALUE self, VALUE alpha)
 {
 
     RGSS_Plane *plane = DATA_PTR(self);
-    if (NIL_P(plane->texture) || !plane->base.visible || plane->base.opacity < FLT_EPSILON)
+    if (plane->texture.id == GL_NONE || !plane->base.visible || plane->base.opacity < FLT_EPSILON)
         return Qnil;
 
     rb_call_super(1, &alpha);
 
-    RGSS_Texture *tex = DATA_PTR(plane->texture);
-    if (tex->id == 0)
-        rb_raise(rb_eRuntimeError, "disposed texture");
-
     glBindSampler(0, plane->sampler);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex->id);
+    glBindTexture(GL_TEXTURE_2D, plane->texture.id);
     glBindVertexArray(plane->base.vao);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_BYTE, NULL);
     glBindVertexArray(GL_NONE);
@@ -1457,6 +1461,7 @@ void RGSS_Init_Entity(VALUE parent)
     rb_define_protected_method0(rb_cRenderable, "vao", RGSS_Renderable_GetVAO, 0);
     rb_define_protected_method0(rb_cRenderable, "vbo", RGSS_Renderable_GetVBO, 0);
     rb_define_protected_method0(rb_cRenderable, "ebo", RGSS_Renderable_GetEBO, 0);
+    rb_define_protected_method0(rb_cRenderable, "id", RGSS_Renderable_GetVAO, 0);
     rb_define_const(rb_cRenderable, "VERTICES_COUNT", INT2NUM(VERTICES_COUNT));
     rb_define_const(rb_cRenderable, "VERTICES_SIZE", INT2NUM(VERTICES_SIZE));
     rb_define_const(rb_cRenderable, "VERTICES_STRIDE", INT2NUM(VERTICES_STRIDE));
@@ -1496,6 +1501,7 @@ void RGSS_Init_Entity(VALUE parent)
 
     rb_cPlane = rb_define_class_under(parent, "Plane", rb_cRenderable);
     rb_define_alloc_func(rb_cPlane, RGSS_Plane_Alloc);
+    rb_define_method0(rb_cPlane, "viewport", RGSS_Plane_GetViewport, 0);
     rb_define_method0(rb_cPlane, "dispose", RGSS_Plane_Dispose, 0);
     rb_define_methodm1(rb_cPlane, "initialize", RGSS_Plane_Initialize, -1);
     DEFINE_ACCESSOR(rb_cPlane, RGSS_Plane, Zoom, "zoom");

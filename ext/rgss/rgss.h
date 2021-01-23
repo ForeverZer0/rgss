@@ -196,13 +196,10 @@ static inline void *RGSS_MALLOC_ALIGNED(size_t size, size_t alignment)
     if (rb_obj_frozen_p(value))                                                                                        \
     rb_raise(rb_eFrozenError, "cannot modify frozen %s", CLASS_NAME(self))
 
-static inline float RGSS_Rand()
-{
-    return (float) rand() / RAND_MAX;
-}
-
+void RGSS_ParseRect(int argc, VALUE *argv, RGSS_Rect *rect);
+float RGSS_Rand();
 float RGSS_FastSin(float degrees);
-#define RGSS_FastCos(degrees) RGSS_FastSin((degrees) + 90.0f)
+#define RGSS_FastCos(degrees) RGSS_FastSin((degrees) + 90.0f) // TODO: Remove
 
 /**
  * @brief Converts a Ruby VALUE object into a C pointer, accepting multiple Ruby types.

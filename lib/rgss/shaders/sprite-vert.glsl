@@ -4,7 +4,7 @@ in layout(location = 0) vec4 vertex;
 
 out vec2 uv;
 
-layout (std140) uniform ortho
+layout (std140) uniform RGSS
 {
     mat4 projection;
 };

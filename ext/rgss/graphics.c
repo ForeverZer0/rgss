@@ -5,8 +5,6 @@ VALUE rb_mGraphics;
 VALUE rb_eGLError;
 VALUE rb_cShader;
 
-#define RGSS_GRAPHICS RGSS_GAME.graphics
-
 void RGSS_Graphics_GLCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *msg,
                               const void *data)
 {
@@ -105,7 +103,7 @@ GLuint RGSS_CreateProgram(GLuint vertex, GLuint fragment, GLuint geometry)
         rb_raise(rb_eRGSSError, "failed to link shader program: %s", buffer);
     }
 
-    GLint index = glGetUniformBlockIndex(program, "ortho");
+    GLint index = glGetUniformBlockIndex(program, "RGSS");
     if (index != GL_INVALID_INDEX)
     {
         glUniformBlockBinding(program, index, 0);
@@ -417,6 +415,20 @@ void RGSS_Graphics_Init(GLFWwindow *window, int width, int height, int vsync)
     RGSS_GRAPHICS.shader.hue = glGetUniformLocation(id, "hue");
     RGSS_GRAPHICS.shader.opacity = glGetUniformLocation(id, "opacity");
     RGSS_LogDebug("Successfully compiled and linked sprite shader");
+
+
+    // TODO:
+    const char *v = "/home/eric/open_rpg/lib/rgss/shaders/particles-vert.glsl";
+    const char *f = "/home/eric/open_rpg/lib/rgss/shaders/particles-frag.glsl";
+    id = RGSS_CreateProgramFromFile(v, f, NULL);
+    RGSS_GRAPHICS.particle_shader.id = id;
+    RGSS_GRAPHICS.particle_shader.color = glGetUniformLocation(id, "color");
+    RGSS_GRAPHICS.particle_shader.tone = glGetUniformLocation(id, "tone");
+    RGSS_GRAPHICS.particle_shader.flash = glGetUniformLocation(id, "flash");
+    RGSS_GRAPHICS.particle_shader.hue = glGetUniformLocation(id, "hue");
+    RGSS_GRAPHICS.particle_shader.opacity = glGetUniformLocation(id, "opacity");
+    RGSS_GRAPHICS.particle_shader.textured = glGetUniformLocation(id, "textured");
+    RGSS_LogDebug("Successfully compiled and linked particle shader");
 }
 
 void RGSS_Graphics_Deinit(GLFWwindow *window)
