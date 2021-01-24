@@ -1,16 +1,18 @@
 
-#include "graphics.h"
 #include "game.h"
+#include "graphics.h"
 
 VALUE rb_mGame;
 VALUE rb_mAudio;
 
-#define RGSS_MAX_TPS 240.0
-#define RGSS_MIN_TPS 1.0
-#define RGSS_DEFAULT_TPS (1.0 / 30.0)
-#define IVAR_TITLE "@title"
-#define IVAR_ICON "@icon"
-#define IVAR_CLOSING "@close_procs"
+int RGSS_DEBUG;
+
+#define RGSS_MAX_TPS     240.0
+#define RGSS_MIN_TPS     1.0
+#define RGSS_DEFAULT_TPS 30.0f
+#define IVAR_TITLE       "@title"
+#define IVAR_ICON        "@icon"
+#define IVAR_CLOSING     "@close_procs"
 
 RGSS_Game RGSS_GAME;
 
@@ -25,9 +27,9 @@ static void RGSS_Game_ErrorCallback(int code, const char *message)
         case GLFW_INVALID_ENUM: rb_raise(rb_eArgError, "an invalid enum value was specified");
         case GLFW_INVALID_VALUE: rb_raise(rb_eArgError, "an invalid argument was specified");
         case GLFW_OUT_OF_MEMORY: rb_raise(rb_eNoMemError, "out of memory");
-        case GLFW_API_UNAVAILABLE: 
+        case GLFW_API_UNAVAILABLE:
         case GLFW_VERSION_UNAVAILABLE: rb_raise(rb_eRuntimeError, "platform does not support OpenGL 3.3");
-        case GLFW_PLATFORM_ERROR: 
+        case GLFW_PLATFORM_ERROR:
         case GLFW_FORMAT_UNAVAILABLE: rb_raise(rb_eRuntimeError, "%s", message);
         default: rb_raise(rb_eRuntimeError, "%s", message);
     }
@@ -101,7 +103,6 @@ static VALUE RGSS_Game_SetFullscreen(VALUE game, VALUE fullscreen)
         }
 
         glfwSetWindowMonitor(RGSS_GAME.window, monitor, rect[0], rect[1], rect[2], rect[3], rate);
-        
     }
     return fullscreen;
 }
@@ -163,8 +164,7 @@ static VALUE RGSS_Game_Create(int argc, VALUE *argv, VALUE game)
     glfwWindowHint(GLFW_FLOATING, topmost);
     glfwWindowHint(GLFW_VISIBLE, visible);
 
-    RGSS_GAME.debug = RTEST(rb_gv_set("$RGSS_DEBUG", Qtrue));
-    if (RGSS_GAME.debug)
+    if (RGSS_DEBUG)
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 
     const GLFWvidmode *mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
@@ -181,7 +181,7 @@ static VALUE RGSS_Game_Create(int argc, VALUE *argv, VALUE game)
     glfwMakeContextCurrent(RGSS_GAME.window);
     if (!gladLoadGL())
     {
-        GLADloadproc proc = (GLADloadproc) glfwGetProcAddress;
+        GLADloadproc proc = (GLADloadproc)glfwGetProcAddress;
         if (!gladLoadGLLoader(proc))
             rb_raise(rb_eRuntimeError, "failed to link OpenGL");
     }
@@ -227,12 +227,10 @@ static VALUE RGSS_Game_Main(int argc, VALUE *argv, VALUE game)
     VALUE tps;
     rb_scan_args(argc, argv, "01", &tps);
 
-    if (RTEST(tps))
-        RGSS_GAME.time.target_tps = 1.0 / NUM2DBL(tps);
-    if (RGSS_GAME.time.target_tps < 1.0)
-        RGSS_GAME.time.target_tps = RGSS_DEFAULT_TPS;
+    RGSS_GAME.time.tps = RTEST(tps) ? NUM2FLT(tps) : RGSS_DEFAULT_TPS;
+    RGSS_GAME.time.tps = RGSS_MAX(RGSS_MIN_TPS, RGSS_MIN(RGSS_MAX_TPS, RGSS_GAME.time.tps));
+    RGSS_GAME.time.tick_delta = 1.0 / RGSS_GAME.time.tps;
 
-    ID update = rb_intern("update");
     double delta;
     double accumulator = 0.0;
 
@@ -241,18 +239,17 @@ static VALUE RGSS_Game_Main(int argc, VALUE *argv, VALUE game)
         delta = RGSS_Game_GetDelta();
         accumulator = (accumulator + delta) * RGSS_GAME.speed;
 
-        while (accumulator >= RGSS_GAME.time.target_tps)
+        while (accumulator >= RGSS_GAME.time.tick_delta)
         {
-            accumulator -= RGSS_GAME.time.target_tps;
+            accumulator -= RGSS_GAME.time.tick_delta;
 
-            // rb_funcall(game, update, 1, DBL2NUM(delta));
-            rb_funcall(game, update, 1, DBL2NUM(RGSS_GAME.time.target_tps));
+            rb_funcall(game, RGSS_ID_UPDATE, 1, DBL2NUM(RGSS_GAME.time.tick_delta));
             RGSS_Input_Update();
             RGSS_GAME.time.tick_count++;
             RGSS_GAME.time.total_ticks++;
         }
 
-        RGSS_Graphics_Render(accumulator / RGSS_GAME.time.target_tps);
+        RGSS_Graphics_Render(accumulator / RGSS_GAME.time.tick_delta);
         glfwPollEvents();
         RGSS_Game_UpdateTime();
     }
@@ -285,7 +282,7 @@ static VALUE RGSS_Game_Close(int argc, VALUE *argv, VALUE game)
 
 static VALUE RGSS_Game_Terminate(VALUE game)
 {
-    // TODO: Cleanup 
+    // TODO: Cleanup
     glfwTerminate();
     return Qnil;
 }
@@ -410,10 +407,20 @@ static VALUE RGSS_Game_OnClose(VALUE game)
     return Qnil;
 }
 
+static VALUE RGSS_Game_GetDebug(ID id, VALUE *data)
+{
+    return RB_BOOL(RGSS_DEBUG);
+}
+
+void RGSS_Game_SetDebug(VALUE value, ID id, VALUE *data)
+{
+    RGSS_DEBUG = RTEST(value);
+    RGSS_LogInfo("Debug mode %s", RGSS_DEBUG ? "enabled" : "disabled");
+}
 
 void RGSS_Init_Game(VALUE parent)
 {
-    rb_mGame =  rb_define_module_under(parent, "Game");
+    rb_mGame = rb_define_module_under(parent, "Game");
     rb_mAudio = rb_define_module_under(parent, "Audio");
 
     rb_define_singleton_methodm1(rb_mGame, "create", RGSS_Game_Create, -1);
@@ -445,6 +452,11 @@ void RGSS_Init_Game(VALUE parent)
     rb_define_singleton_method1(rb_mGame, "speed=", RGSS_Game_SetSpeed, 1);
 
     rb_define_singleton_method0(rb_mGame, "on_close", RGSS_Game_OnClose, 0);
+
+    // Initialize debug flag, check before hooking in case it was set prior to loading library
+    RGSS_DEBUG = RTEST(rb_gv_get("$RGSS_DEBUG"));
+    rb_define_virtual_variable("$RGSS_DEBUG", RGSS_Game_GetDebug, RGSS_Game_SetDebug);
+
 
     glfwSetErrorCallback(RGSS_Game_ErrorCallback);
 }

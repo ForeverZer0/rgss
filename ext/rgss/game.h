@@ -108,22 +108,23 @@ typedef struct
 
 typedef struct
 {
-    GLFWwindow *window;
-    int debug;
+    GLFWwindow *window; /** The native window handle/context. */
+    int debug; /** Flag indicat*/
     int auto_ortho;
     double speed;
     int rect[4];
     struct
     {
-        double target_tps;
-        double last;
-        double time_count;
-        double fps;
-        double fps_count;
-        double ticks;
-        double tick_count;
-        uint64_t total_frames;
-        uint64_t total_ticks;
+        float tps;             /** The number of ticks per second the game updates at. */
+        double tick_delta;     /** The delta of the game update, in second units. */
+        double last;           /** The time of the last tick. */
+        double time_count;     /** The amount of time elapsed this second. */
+        double fps;            /** The calculated FPS for the previous second. */
+        double fps_count;      /** The number of renders accumulated this second. */
+        double ticks;          /** The calculated number of ticks for the previous second. */
+        double tick_count;     /** The number of ticks accumulated this second. */
+        uint64_t total_frames; /** The total number of elapsed frames. */
+        uint64_t total_ticks;  /** The total number of elapsed ticks. */
     } time;
     struct
     {
@@ -166,6 +167,8 @@ typedef struct
         } state;
         RGSS_Mapping *bindings;
         GLFWcursor *cursor;
+        RGSS_Point cursor_position;
+        int cursor_valid;
     } input;
 } RGSS_Game;
 
@@ -178,7 +181,6 @@ void RGSS_Input_Deinit(GLFWwindow *window);
 void RGSS_Input_Update(void);
 
 VALUE RGSS_Graphics_Restore(VALUE graphics);
-
 
 extern RGSS_Game RGSS_GAME;
 
@@ -198,7 +200,6 @@ static inline void RGSS_ParseOpt(VALUE opts, const char *name, int ifnone, int *
             *result = (opt == Qnil) ? ifnone : RTEST(opt);
     }
 }
-
 
 int RGSS_Batch_Sort(const void *obj1, const void *obj2);
 VALUE RGSS_Batch_Add(VALUE self, VALUE obj);
@@ -227,12 +228,8 @@ extern ID RGSS_ID_UPDATE;
     ATTR_READER(type, attr, field, to_ruby)                                                                            \
     ATTR_WRITER(type, attr, field, to_c)
 
-#define DEFINE_ACCESSOR(klass, type, attr, name) \
-rb_define_method0(klass,  name, type##_##Get##attr, 0);\
-rb_define_method1(klass, name"=" , type##_##Set##attr, 1)
-
-
-
-
+#define DEFINE_ACCESSOR(klass, type, attr, name)                                                                       \
+    rb_define_method0(klass, name, type##_##Get##attr, 0);                                                             \
+    rb_define_method1(klass, name "=", type##_##Set##attr, 1)
 
 #endif /* RGSS_GAME_H */

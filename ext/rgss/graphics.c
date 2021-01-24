@@ -143,7 +143,9 @@ GLuint RGSS_CreateProgramFromFile(const char *vert_path, const char *frag_path, 
 
 static VALUE RGSS_Shader_Alloc(VALUE klass)
 {
-    return Data_Wrap_Struct(klass, NULL, RUBY_NEVER_FREE, NULL);
+    RGSS_Shader *shader = ALLOC(RGSS_Shader);
+    memset(shader, 0, sizeof(RGSS_Shader));
+    return Data_Wrap_Struct(klass, NULL, RUBY_DEFAULT_FREE, shader);
 }
 
 static VALUE RGSS_Shader_Load(int argc, VALUE *argv, VALUE klass)
@@ -159,7 +161,10 @@ static VALUE RGSS_Shader_Load(int argc, VALUE *argv, VALUE klass)
     if (program == GL_NONE)
         rb_raise(rb_eRGSSError, "failed to create shader program");
 
-    return RGSS_SHADER_WRAP_CLASS(klass, program);
+    RGSS_Shader *shader = ALLOC(RGSS_Shader);
+    shader->id = program;
+
+    return Data_Wrap_Struct(klass, NULL, RUBY_DEFAULT_FREE, shader);
 }
 
 static VALUE RGSS_Shader_Initialize(int argc, VALUE *argv, VALUE self)
@@ -175,46 +180,107 @@ static VALUE RGSS_Shader_Initialize(int argc, VALUE *argv, VALUE self)
     if (id == GL_NONE)
         rb_raise(rb_eRGSSError, "failed to create shader program");
 
-    RDATA(self)->data = RGSS_SHADER_PTR(id);
+    RGSS_Shader *shader = DATA_PTR(self);
+    shader->id = id;
+
     return self;
 }
 
 static VALUE RGSS_Shader_Use(VALUE self)
 {
-    GLuint id = RGSS_SHADER_UNWRAP(self);
-    RGSS_ASSERT_SHADER(id);
-    glUseProgram(id);
+    RGSS_Shader *shader = DATA_PTR(self);
+    RGSS_ASSERT_SHADER(shader->id);
+    glUseProgram(shader->id);
     return self;
 }
 
 static VALUE RGSS_Shader_GetID(VALUE self)
 {
-    return UINT2NUM(RGSS_SHADER_UNWRAP(self));
+    RGSS_Shader *shader = DATA_PTR(self);
+    return UINT2NUM(shader->id);
 }
 
 static VALUE RGSS_Shader_Locate(VALUE self, VALUE uniform)
 {
     if (uniform == Qnil)
         return INT2NUM(-1);
-    GLuint id = RGSS_SHADER_UNWRAP(self);
-    RGSS_ASSERT_SHADER(id);
-    return INT2NUM(glGetUniformLocation(id, StringValueCStr(uniform)));
+    RGSS_Shader *shader = DATA_PTR(self);
+    RGSS_ASSERT_SHADER(shader->id);
+    return INT2NUM(glGetUniformLocation(shader->id, StringValueCStr(uniform)));
 }
 
 static VALUE RGSS_Shader_Dispose(VALUE self)
 {
-    GLuint id = RGSS_SHADER_UNWRAP(self);
-    if (id != GL_NONE)
+    RGSS_Shader *shader = DATA_PTR(self);
+    if (shader->id != GL_NONE)
     {
-        glDeleteProgram(id);
-        RDATA(self)->data = NULL;
+        glDeleteProgram(shader->id);
+        shader->id = GL_NONE;
     }
     return Qnil;
 }
 
 static VALUE RGSS_Shader_IsDisposed(VALUE self)
 {
-    return RB_BOOL(DATA_PTR(self));
+    RGSS_Shader *shader = DATA_PTR(self);
+    return RB_BOOL(shader->id == GL_NONE);
+}
+
+static VALUE RGSS_Shader_SetUniform(VALUE self, VALUE location, VALUE value)
+{
+    int loc = NUM2INT(location);
+    if (loc < 0)
+        rb_raise(rb_eArgError, "uniform location must be 0 or greater (given %d)", loc);
+
+    RGSS_Shader *shader = DATA_PTR(self);
+    int type = TYPE(value);
+    glUseProgram(shader->id);
+
+    switch (type)
+    {
+        case T_FLOAT:
+        {
+            glUniform1f(loc, NUM2FLT(value));
+            break;
+        }
+        case T_DATA:
+        {
+            VALUE klass = CLASS_OF(value);
+            void *data = DATA_PTR(value);
+
+            if (klass == rb_cVec2)
+                glUniform2fv(loc, 1, data);
+            else if (klass == rb_cVec3)
+                glUniform3fv(loc, 1, data);
+            else if (klass == rb_cVec4)
+                glUniform4fv(loc, 1, data);
+            else if (klass == rb_cMat4)
+                glUniformMatrix4fv(loc, 1, GL_FALSE, data);
+            else if (rb_class_inherited_p(klass, rb_cIVec2))
+                glUniform2iv(loc, 1, data);
+            else if (rb_obj_is_kind_of(value, rb_cTexture))
+            {
+                RGSS_Texture *t = data;
+                glUniform1i(loc, t->id);
+            }
+            else 
+                rb_raise(rb_eTypeError, "cannot set %s as uniform value", rb_class2name(klass));
+            break;
+        }
+        case T_FIXNUM:
+        {
+            glUniform1i(loc, NUM2INT(value));
+            break;
+        }
+        case T_TRUE:
+        case T_FALSE:
+        {
+            glUniform1i(loc, RTEST(value));
+            break;
+        }
+        default: rb_raise(rb_eTypeError, "cannot set %s as uniform value", CLASS_NAME(value));
+    }
+    return value;
 }
 
 // TODO: Uniform setters
@@ -556,6 +622,7 @@ void RGSS_Init_Graphics(VALUE parent)
     rb_define_methodm1(rb_cShader, "initialize", RGSS_Shader_Initialize, -1);
     rb_define_method0(rb_cShader, "id", RGSS_Shader_GetID, 0);
     rb_define_method0(rb_cShader, "use", RGSS_Shader_Use, 0);
+    rb_define_method2(rb_cShader, "uniform", RGSS_Shader_SetUniform, 2);
     rb_define_method0(rb_cShader, "disposed", RGSS_Shader_Dispose, 0);
     rb_define_method0(rb_cShader, "disposed?", RGSS_Shader_IsDisposed, 0);
     rb_define_method1(rb_cShader, "locate", RGSS_Shader_Locate, 1);

@@ -20,33 +20,16 @@ void main()
     float s = sin(angle);
     vec2 p = quad.xy + (quad.zw * 0.5);
 
-    mat4 rotation = mat4
-    (   
-        c, s, 0, 0,
-        -s, c, 0, 0,
-        0, 0, 1, 0,
-        p.x * (1.0 - c) + p.y * s,  p.y * (1.0 - c) - p.x * s, 0, 1
-    );
+    // mat4 rotation = mat4
+    // (   
+    //     c, s, 0, 0,
+    //     -s, c, 0, 0,
+    //     0, 0, 1, 0,
+    //     p.x * (1.0 - c) + p.y * s,  p.y * (1.0 - c) - p.x * s, 0, 1
+    // );
 
-    // Create a translation/scale matrix
-    mat4 scale = mat4
-    (
-        quad.z, 0, 0, 0,
-        0, quad.w, 0, 0,
-        0, 0, 1, 0,
-        quad.x, quad.y, 0, 1
-    );
-
-    gl_Position = projection * (rotation * scale) * vec4(vertex.xy, 0.0, 1.0);
-    uv = vertex.zw;    
-    vertex_color = rgba;
-
-    // float c = cos(angle);
-    // float s = sin(angle);
-    // float x = (c * vertex.x) - (s * vertex.y);
-    // float y = (s * vertex.x) + (c * vertex.y);
-    
-    // mat4 model = mat4
+    // // Create a translation/scale matrix
+    // mat4 scale = mat4
     // (
     //     quad.z, 0, 0, 0,
     //     0, quad.w, 0, 0,
@@ -54,8 +37,18 @@ void main()
     //     quad.x, quad.y, 0, 1
     // );
 
-    // gl_Position = projection * model * vec4(vertex.xy, 0.0, 1.0);
+    mat4 model = mat4
+    (   
+        c * quad.z, s, 0, 0,
+        -s, c * quad.w, 0, 0,
+        0, 0, 1, 0,
+        quad.x * (p.x * (1.0 - c) + p.y * s),  quad.y * (p.y * (1.0 - c) - p.x * s), 0, 1
+    );
 
-    // uv = vertex.zw;    
-    // vertex_color = rgba;
+
+
+    gl_Position = projection * model * vec4(vertex.xy, 0.0, 1.0);
+    // gl_Position = projection * (rotation * scale) * vec4(vertex.xy, 0.0, 1.0);
+    uv = vertex.zw;    
+    vertex_color = rgba;
 }

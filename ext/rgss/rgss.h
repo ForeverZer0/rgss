@@ -5,10 +5,35 @@
 #include <errno.h>
 #include <ruby.h>
 
-#define NUM2FLT(v)      ((float)NUM2DBL(v))
-#define RB_BOOL(expr)   ((expr) ? Qtrue : Qfalse)
+extern int RGSS_DEBUG; /** Flag indicating if the library's debug-mode has been enabled. */
+
+/**
+ * @brief Converts a Ruby VALUE to a 32-bit float.
+ * @param v A Ruby Numeric instance.
+ * @return A 32-bit float, or raises a TypeError if value is not Numeric
+ */
+#define NUM2FLT(v) ((float)NUM2DBL(v))
+
+/**
+ * @brief Converts an expression to a Ruby boolean.
+ * @param expr Any expression that can be evaluated as a boolean.
+ * @return Either Qtrue or Qfalse.
+ */
+#define RB_BOOL(expr) ((expr) ? Qtrue : Qfalse)
+
+/**
+ * @brief Gets the name of a Ruby object's class as a C-style string.
+ * @param obj A Ruby VALUE
+ * @return The name of the object's class as a char array.
+ */
 #define CLASS_NAME(obj) rb_class2name(CLASS_OF(obj))
-#define STR2SYM(str)    ID2SYM(rb_intern(str))
+
+/**
+ * @brief Converts a C-style string to a Ruby Symbol
+ * @param str A C-style string
+ * @return A Symbol object (VALUE)
+ */
+#define STR2SYM(str) ID2SYM(rb_intern(str))
 
 extern VALUE rb_mRGSS;      /** A module containing the top-level namespace of the API. */
 extern VALUE rb_eRGSSError; /** A general exception class for errors related to library usage. */
@@ -17,16 +42,17 @@ extern VALUE rb_cWindow;    /** Class representing an opaque GLFW window handle.
 extern VALUE rb_cMonitor;   /** Class representing an opaque GLFW monitor handle. */
 extern VALUE rb_cCursor;    /** Class representing an opaque GLFW cursor handle. */
 extern VALUE rb_cVideoMode;
-extern VALUE rb_cGamepad;
+extern VALUE rb_cGamepad; // TODO
 extern VALUE rb_cGammaRamp;
 
-extern VALUE rb_mGL;
-extern VALUE rb_mAL;
-extern VALUE rb_mALC;
-extern VALUE rb_cSound;
-extern VALUE rb_cImage;
+extern VALUE rb_mGL;    /** Module containing the OpenGL bindings. */
+extern VALUE rb_mAL;    /** Module containing the OpenAL bindings. */
+extern VALUE rb_mALC;   /** Module containing the context-related OpenAL bindings. */
+extern VALUE rb_cSound; /** Class representing a sound file. */
+extern VALUE rb_cImage; /** Class representing an image. */
 
 extern VALUE rb_mGraphics;
+extern VALUE rb_cShader;
 
 extern VALUE rb_cBatch;
 extern VALUE rb_cEntity;

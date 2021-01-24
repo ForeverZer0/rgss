@@ -9,6 +9,10 @@ typedef struct RGSS_Renderable RGSS_Renderable;
 
 #define RGSS_GRAPHICS RGSS_GAME.graphics
 
+typedef struct {
+    GLuint id;
+} RGSS_Shader;
+
 /**
  * @brief A unit vector for rotation around Z axis.
  */
@@ -43,35 +47,6 @@ static const GLubyte RGSS_QUAD_INDICES[] =
 #define RGSS_ASSERT_SHADER(id)                                                                                         \
     if (id == GL_NONE)                                                                                                 \
     rb_raise(rb_eRGSSError, "disposed shader program")
-
-/**
- * @brief Stores an OpenGL program ID into a pointer.
- * @param[in] id The name of an OpenGL shader program.
- * @return A pointer containing the ID value.
- */
-#define RGSS_SHADER_PTR(id) ((GLuint *)(size_t)id)
-
-/**
- * @brief Wraps an OpenGL program ID into a Ruby object of the specifed class.
- * @param[in] klass The Ruby class to wrap it as.
- * @param[in] id The name of an OpenGL shader program.
- * @return A Ruby VALUE representing the object.
- */
-#define RGSS_SHADER_WRAP_CLASS(klass, id) Data_Wrap_Struct(klass, NULL, RUBY_NEVER_FREE, RGSS_SHADER_PTR(id))
-
-/**
- * @brief Wraps an OpenGL program ID into a Ruby object, using base class.
- * @param[in] id The name of an OpenGL shader program.
- * @return A Ruby VALUE representing the object.
- */
-#define RGSS_SHADER_WRAP(id) RGSS_SAHDER_WRAP_CLASS(rb_cShader, id)
-
-/**
- * @brief Unwraps a Ruby VALUE object back into an OpenGL shader program.
- * @param[in] v A Ruby VALUE representing the shader.
- * @return The shader ID.
- */
-#define RGSS_SHADER_UNWRAP(v) ((GLuint)(size_t)DATA_PTR(v))
 
 /**
  * @brief
@@ -142,6 +117,21 @@ void RGSS_Entity_Deinit(RGSS_Entity *entity);
 
 void RGSS_Renderable_Init(RGSS_Renderable *obj);
 
+
+static inline GLuint RGSS_CreateBuffer(GLenum target, GLsizeiptr size, const void *data, GLenum usage)
+{
+    GLuint buffer;
+    glGenBuffers(1, &buffer);
+    glBindBuffer(target, buffer);
+    glBufferData(target, size, data, usage);
+
+    GLint bufsize;
+    glGetBufferParameteriv(target, GL_BUFFER_SIZE, &bufsize);
+    if (bufsize != size)
+        rb_raise(rb_eRGSSError, "GPU memory allocation failed");
+
+    return buffer;
+}
 
 static inline void RGSS_ValueToVec3(VALUE value, vec3 result)
 {

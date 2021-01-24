@@ -33,8 +33,7 @@ module RGSS
 
       if Input.trigger?(:FULLSCREEN)
         p Graphics.fps
-        p $e.scale
-        p $e.position
+        $e.fullscreen
       end
 
       if Input.press?(:QUIT)
@@ -82,27 +81,27 @@ EOS
 
   $v = Viewport.new(200, 200, 200, 200)
 
-  $e = Emitter.new(20000, nil) do |e|
-    e.velocity = vec3(0, 0, -0.00001)
-    # e.opacity = 0.5
-    # e.texture = Texture.load("/home/eric/Desktop/smoke.png")
-    e.size = (2..6)
+  $e = Emitter.new(2000, nil) do |e|
+    e.opacity = 0.75
+    e.texture = Texture.load("/home/eric/Desktop/smoke.png")
+    e.particle_size = (4..10)
     e.position = vec2(1024 / 2, 768 / 2)
-    e.radius = 2
+    e.radius = 16
     e.rate = 5
-    e.direction = nil
-    e.force = 100
-    e.gravity = -80
-    # e.wind = -50
-    e.friction = 1
-
-    e.growth = 2.1
-    # e.rotation = 360
-    e.fade = 10
+    e.direction = 180
+    
+    # e.force = 50
+    # e.gravity = -32
+    # e.wind = rand(10, 30)
+    e.order = Emitter::ORDER_OLDEST
+    e.growth = (6..20)
+    e.rotation = -40..40
+    e.fade = 40
     e.lifespan = 30 * 8
-    # e.spectrum = (Color::GRAY..Color::WHITE)
-    # e.scale = vec3(0.3, 0.3, 0)
+    e.spectrum = (Color::BLACK..Color::WHITE)
+    e.frequency = 5
   end
+
 
 
 
@@ -113,7 +112,7 @@ EOS
     Game.main(30)
   rescue
     Log.fatal($!.to_s)
-    raise $1
+    raise $!
   end
   Game.terminate
 end

@@ -1,7 +1,7 @@
+#include "rgss.h"
 #include <ruby/io.h>
 #include <stdint.h>
 #include <time.h>
-#include "rgss.h"
 
 VALUE rb_mRGSS;
 VALUE rb_eRGSSError;
@@ -42,8 +42,12 @@ uint64_t xoshiro256ss(struct xoshiro256ss_state *state)
     return result;
 }
 
-static inline double to_double(uint64_t x) {
-    const union { uint64_t i; double d; } u = { .i = UINT64_C(0x3FF) << 52 | x >> 12 };
+static inline double to_double(uint64_t x)
+{
+    const union {
+        uint64_t i;
+        double d;
+    } u = {.i = UINT64_C(0x3FF) << 52 | x >> 12};
     return u.d - 1.0;
 }
 
@@ -78,12 +82,12 @@ static VALUE RGSS_Degrees(VALUE rgss, VALUE radians)
 inline float RGSS_Rand()
 {
     uint64_t r = xoshiro256ss(&RGSS_RAND_STATE);
-    return (float) to_double(r);
+    return (float)to_double(r);
 }
 
 static VALUE RGSS_Random(int argc, VALUE *argv, VALUE rgss)
 {
-    
+
     if (argc == 0)
         return DBL2NUM(to_double(xoshiro256ss(&RGSS_RAND_STATE)));
 
@@ -205,15 +209,13 @@ inline void RGSS_ParseRect(int argc, VALUE *argv, RGSS_Rect *rect)
 {
     switch (argc)
     {
-        case 1:
-        {
+        case 1: {
             if (rb_obj_is_kind_of(argv[0], rb_cRect) != Qtrue)
                 rb_raise(rb_eTypeError, "%s is not a Rect", CLASS_NAME(argv[0]));
             memcpy(rect, DATA_PTR(argv[0]), sizeof(RGSS_Rect));
-            break;    
+            break;
         }
-        case 2:
-        {
+        case 2: {
             if (rb_obj_is_kind_of(argv[0], rb_cIVec2) != Qtrue)
                 rb_raise(rb_eTypeError, "%s is not a IVec2", CLASS_NAME(argv[0]));
             if (rb_obj_is_kind_of(argv[1], rb_cIVec2) != Qtrue)
@@ -223,8 +225,7 @@ inline void RGSS_ParseRect(int argc, VALUE *argv, RGSS_Rect *rect)
             memcpy(&rect->size, DATA_PTR(argv[1]), sizeof(RGSS_Size));
             break;
         }
-        case 4:
-        {
+        case 4: {
             rect->x = NUM2INT(argv[0]);
             rect->y = NUM2INT(argv[1]);
             rect->width = NUM2INT(argv[2]);
@@ -240,11 +241,10 @@ void Init_rgss(void)
     // TODO: Dump/load seed
     time_t t;
     srand((unsigned)time(&t));
-    RGSS_RAND_STATE.s[0] = (unsigned) rand();
-    RGSS_RAND_STATE.s[1] = (unsigned) rand();
-    RGSS_RAND_STATE.s[2] = (unsigned) rand();
-    RGSS_RAND_STATE.s[3] = (unsigned) rand();
-
+    RGSS_RAND_STATE.s[0] = (unsigned)rand();
+    RGSS_RAND_STATE.s[1] = (unsigned)rand();
+    RGSS_RAND_STATE.s[2] = (unsigned)rand();
+    RGSS_RAND_STATE.s[3] = (unsigned)rand();
 
     rb_mRGSS = rb_define_module("RGSS");
     rb_eRGSSError = rb_define_class_under(rb_mRGSS, "RGSSError", rb_eStandardError);

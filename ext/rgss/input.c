@@ -1,7 +1,7 @@
 #include "game.h"
 #include "utf8.h"
 
-#define INPUT RGSS_GAME.input
+#define INPUT RGSS_INPUT
 #define INPUT_RELEASE     -2
 #define INPUT_NONE        -1
 #define INPUT_PRESS       0
@@ -11,9 +11,10 @@
 #define RGSS_TEXT_CALLBACK  "@on_text"
 #define RGSS_FOCUS_CALLBACK "@on_focus"
 
-#define KEY(k)     RGSS_GAME.input.state.key[k]
-#define MBTN(btn)  RGSS_GAME.input.state.mouse[btn]
-#define GPBTN(btn) RGSS_GAME.input.state.gamepad[btn]
+#define RGSS_INPUT RGSS_GAME.input
+#define KEY(k)     RGSS_INPUT.state.key[k]
+#define MBTN(btn)  RGSS_INPUT.state.mouse[btn]
+#define GPBTN(btn) RGSS_INPUT.state.gamepad[btn]
 
 VALUE rb_mInput;
 
@@ -63,11 +64,11 @@ static VALUE RGSS_Input_Bind(int argc, VALUE *argv, VALUE input)
     RGSS_Mapping *mapping;
     ID id = RB_TYPE_P(name, T_SYMBOL) ? SYM2ID(name) : rb_intern_str(name);;
 
-    HASH_FIND(hh, RGSS_GAME.input.bindings, &id, sizeof(ID), mapping);
+    HASH_FIND(hh, RGSS_INPUT.bindings, &id, sizeof(ID), mapping);
     if (mapping)
     {   
         // Free any mapping that may exist at key
-        HASH_DEL(RGSS_GAME.input.bindings, mapping);
+        HASH_DEL(RGSS_INPUT.bindings, mapping);
         xfree(mapping);
     }
 
@@ -79,7 +80,7 @@ static VALUE RGSS_Input_Bind(int argc, VALUE *argv, VALUE input)
     RGSS_Mapping_Init(&mapping->mouse_buttons, mouse, GLFW_MOUSE_BUTTON_LAST);
     RGSS_Mapping_Init(&mapping->gamepad_buttons, gamepad, GLFW_GAMEPAD_BUTTON_LAST);
 
-    HASH_ADD(hh, RGSS_GAME.input.bindings, id, sizeof(ID), mapping);
+    HASH_ADD(hh, RGSS_INPUT.bindings, id, sizeof(ID), mapping);
     return Qtrue;
 }
 
@@ -89,11 +90,11 @@ static VALUE RGSS_Input_Unbind(VALUE input, VALUE name)
     RGSS_Mapping *mapping;
     ID id = RB_TYPE_P(name, T_SYMBOL) ? SYM2ID(name) : rb_intern(StringValueCStr(name));
 
-    HASH_FIND(hh, RGSS_GAME.input.bindings, &id, sizeof(ID), mapping);
+    HASH_FIND(hh, RGSS_INPUT.bindings, &id, sizeof(ID), mapping);
 
     if (mapping)
     {
-        HASH_DEL(RGSS_GAME.input.bindings, mapping);
+        HASH_DEL(RGSS_INPUT.bindings, mapping);
 
         vec_deinit(&mapping->keys);
         vec_deinit(&mapping->mouse_buttons);
@@ -114,7 +115,7 @@ static VALUE RGSS_Input_EachBinding(VALUE input)
 
     int i, value;
 
-    HASH_ITER(hh, RGSS_GAME.input.bindings, mapping, temp)
+    HASH_ITER(hh, RGSS_INPUT.bindings, mapping, temp)
     {        
         name = ID2SYM(mapping->id);
         keys = rb_ary_new_capa(mapping->keys.length);
@@ -143,9 +144,9 @@ static void RGSS_Input_KeyCallback(GLFWwindow *window, int key, int scancode, in
         return;
 
     if (action == GLFW_PRESS)
-        RGSS_GAME.input.state.key[key] = INPUT_PRESS;
+        RGSS_INPUT.state.key[key] = INPUT_PRESS;
     else if (action == GLFW_RELEASE)
-        RGSS_GAME.input.state.key[key] = INPUT_RELEASE;
+        RGSS_INPUT.state.key[key] = INPUT_RELEASE;
 }
 
 static void RGSS_Input_MouseCallback(GLFWwindow *window, int key, int action, int mods)
@@ -155,9 +156,9 @@ static void RGSS_Input_MouseCallback(GLFWwindow *window, int key, int action, in
         return;
 
     if (action == GLFW_PRESS)
-        RGSS_GAME.input.state.mouse[key] = INPUT_PRESS;
+        RGSS_INPUT.state.mouse[key] = INPUT_PRESS;
     else if (action == GLFW_RELEASE)
-        RGSS_GAME.input.state.mouse[key] = INPUT_RELEASE;
+        RGSS_INPUT.state.mouse[key] = INPUT_RELEASE;
 }
 
 void RGSS_Input_Update(void)
@@ -185,8 +186,9 @@ void RGSS_Input_Update(void)
             MBTN(i) = INPUT_NONE;
     }
 
-    RGSS_GAME.input.state.scroll_x = 0.0;
-    RGSS_GAME.input.state.scroll_y = 0.0;
+    RGSS_INPUT.state.scroll_x = 0.0;
+    RGSS_INPUT.state.scroll_y = 0.0;
+    RGSS_INPUT.cursor_valid = false;
 }
 
 static VALUE RGSS_Input_IsTriggered(VALUE input, VALUE sym)
@@ -194,7 +196,7 @@ static VALUE RGSS_Input_IsTriggered(VALUE input, VALUE sym)
     ID id = SYM2ID(sym);
 
     RGSS_Mapping *mapping;
-    HASH_FIND(hh, RGSS_GAME.input.bindings, &id, sizeof(ID), mapping);
+    HASH_FIND(hh, RGSS_INPUT.bindings, &id, sizeof(ID), mapping);
 
     if (mapping == NULL)
         return Qfalse;
@@ -204,7 +206,7 @@ static VALUE RGSS_Input_IsTriggered(VALUE input, VALUE sym)
     // Check keyboard keys
     vec_foreach(&mapping->keys, value, i)
     {
-        state = RGSS_GAME.input.state.key[value];
+        state = RGSS_INPUT.state.key[value];
         if (state == INPUT_PRESS)
             return Qtrue;
     }
@@ -212,7 +214,7 @@ static VALUE RGSS_Input_IsTriggered(VALUE input, VALUE sym)
     // Check mouse input
     vec_foreach(&mapping->mouse_buttons, value, i)
     {
-        state = RGSS_GAME.input.state.mouse[value];
+        state = RGSS_INPUT.state.mouse[value];
         if (state == INPUT_PRESS)
             return Qtrue;
     }
@@ -227,7 +229,7 @@ static VALUE RGSS_Input_IsDown(VALUE input, VALUE sym)
     ID id = SYM2ID(sym);
 
     RGSS_Mapping *mapping;
-    HASH_FIND(hh, RGSS_GAME.input.bindings, &id, sizeof(ID), mapping);
+    HASH_FIND(hh, RGSS_INPUT.bindings, &id, sizeof(ID), mapping);
 
     if (mapping == NULL)
         return Qfalse;
@@ -237,7 +239,7 @@ static VALUE RGSS_Input_IsDown(VALUE input, VALUE sym)
     // Check keyboard keys
     vec_foreach(&mapping->keys, value, i)
     {
-        state = RGSS_GAME.input.state.key[value];
+        state = RGSS_INPUT.state.key[value];
         if (state >= INPUT_PRESS)
             return Qtrue;
     }
@@ -245,7 +247,7 @@ static VALUE RGSS_Input_IsDown(VALUE input, VALUE sym)
     // Check mouse input
     vec_foreach(&mapping->mouse_buttons, value, i)
     {
-        state = RGSS_GAME.input.state.mouse[value];
+        state = RGSS_INPUT.state.mouse[value];
         if (state >= INPUT_PRESS)
             return Qtrue;
     }
@@ -260,7 +262,7 @@ static VALUE RGSS_Input_IsRepeated(VALUE input, VALUE sym)
     ID id = SYM2ID(sym);
 
     RGSS_Mapping *mapping;
-    HASH_FIND(hh, RGSS_GAME.input.bindings, &id, sizeof(ID), mapping);
+    HASH_FIND(hh, RGSS_INPUT.bindings, &id, sizeof(ID), mapping);
 
     if (mapping == NULL)
         return Qfalse;
@@ -270,7 +272,7 @@ static VALUE RGSS_Input_IsRepeated(VALUE input, VALUE sym)
     // Check keyboard keys
     vec_foreach(&mapping->keys, value, i)
     {
-        state = RGSS_GAME.input.state.key[value];
+        state = RGSS_INPUT.state.key[value];
         if (state == INPUT_REPEAT_RATE)
             return Qtrue;
     }
@@ -278,7 +280,7 @@ static VALUE RGSS_Input_IsRepeated(VALUE input, VALUE sym)
     // Check mouse input
     vec_foreach(&mapping->mouse_buttons, value, i)
     {
-        state = RGSS_GAME.input.state.mouse[value];
+        state = RGSS_INPUT.state.mouse[value];
         if (state == INPUT_REPEAT_RATE)
             return Qtrue;
     }
@@ -293,7 +295,7 @@ static VALUE RGSS_Input_IsReleased(VALUE input, VALUE sym)
     ID id = SYM2ID(sym);
 
     RGSS_Mapping *mapping;
-    HASH_FIND(hh, RGSS_GAME.input.bindings, &id, sizeof(ID), mapping);
+    HASH_FIND(hh, RGSS_INPUT.bindings, &id, sizeof(ID), mapping);
 
     if (mapping == NULL)
         return Qfalse;
@@ -303,7 +305,7 @@ static VALUE RGSS_Input_IsReleased(VALUE input, VALUE sym)
     // Check keyboard keys
     vec_foreach(&mapping->keys, value, i)
     {
-        state = RGSS_GAME.input.state.key[value];
+        state = RGSS_INPUT.state.key[value];
         if (state == INPUT_RELEASE)
             return Qtrue;
     }
@@ -311,7 +313,7 @@ static VALUE RGSS_Input_IsReleased(VALUE input, VALUE sym)
     // Check mouse input
     vec_foreach(&mapping->mouse_buttons, value, i)
     {
-        state = RGSS_GAME.input.state.mouse[value];
+        state = RGSS_INPUT.state.mouse[value];
         if (state == INPUT_RELEASE)
             return Qtrue;
     }
@@ -326,7 +328,7 @@ static VALUE RGSS_Input_IsUp(VALUE input, VALUE sym)
     ID id = SYM2ID(sym);
 
     RGSS_Mapping *mapping;
-    HASH_FIND(hh, RGSS_GAME.input.bindings, &id, sizeof(ID), mapping);
+    HASH_FIND(hh, RGSS_INPUT.bindings, &id, sizeof(ID), mapping);
 
     if (mapping == NULL)
         return Qfalse;
@@ -336,7 +338,7 @@ static VALUE RGSS_Input_IsUp(VALUE input, VALUE sym)
     // Check keyboard keys
     vec_foreach(&mapping->keys, value, i)
     {
-        state = RGSS_GAME.input.state.key[value];
+        state = RGSS_INPUT.state.key[value];
         if (state <= INPUT_NONE)
             return Qtrue;
     }
@@ -344,7 +346,7 @@ static VALUE RGSS_Input_IsUp(VALUE input, VALUE sym)
     // Check mouse input
     vec_foreach(&mapping->mouse_buttons, value, i)
     {
-        state = RGSS_GAME.input.state.mouse[value];
+        state = RGSS_INPUT.state.mouse[value];
         if (state <= INPUT_NONE)
             return Qtrue;
     }
@@ -354,48 +356,31 @@ static VALUE RGSS_Input_IsUp(VALUE input, VALUE sym)
     return Qfalse;
 }
 
-static VALUE RGSS_Input_GetCursorX(VALUE input)
-{
-    // TODO: Translate to world space
-    double x;
-    glfwGetCursorPos(RGSS_GAME.window, &x, NULL);
-
-    return DBL2NUM(x);
-}
-
-static VALUE RGSS_Input_GetCursorY(VALUE input)
-{
-    // TODO: Translate to world space
-    double y;
-    glfwGetCursorPos(RGSS_GAME.window, NULL, &y);
-
-    return DBL2NUM(y);
-}
-
 static VALUE RGSS_Input_GetScrollX(VALUE inpue)
 {
-    return DBL2NUM(RGSS_GAME.input.state.scroll_x);
+    return DBL2NUM(RGSS_INPUT.state.scroll_x);
 }
 
 static VALUE RGSS_Input_GetScrollY(VALUE inpue)
 {
-    return DBL2NUM(RGSS_GAME.input.state.scroll_y);
+    return DBL2NUM(RGSS_INPUT.state.scroll_y);
 }
 
 static void RGSS_Input_ScrollCallback(GLFWwindow *window, double x, double y)
 {
-    RGSS_GAME.input.state.scroll_x += x;
-    RGSS_GAME.input.state.scroll_y += y;
+    RGSS_INPUT.state.scroll_x += x;
+    RGSS_INPUT.state.scroll_y += y;
 }
 
 static VALUE RGSS_Input_Clear(VALUE input)
 {
-    memset(RGSS_GAME.input.state.key, INPUT_NONE, sizeof(RGSS_GAME.input.state.key));
-    memset(RGSS_GAME.input.state.mouse, INPUT_NONE, sizeof(RGSS_GAME.input.state.mouse));
-    memset(RGSS_GAME.input.state.gamepad, INPUT_NONE, sizeof(RGSS_GAME.input.state.gamepad));
+    memset(RGSS_INPUT.state.key, INPUT_NONE, sizeof(RGSS_INPUT.state.key));
+    memset(RGSS_INPUT.state.mouse, INPUT_NONE, sizeof(RGSS_INPUT.state.mouse));
+    memset(RGSS_INPUT.state.gamepad, INPUT_NONE, sizeof(RGSS_INPUT.state.gamepad));
 
-    RGSS_GAME.input.state.scroll_x = 0.0;
-    RGSS_GAME.input.state.scroll_y = 0.0;
+    RGSS_INPUT.state.scroll_x = 0.0;
+    RGSS_INPUT.state.scroll_y = 0.0;
+    RGSS_INPUT.cursor_valid = false;
 }
 
 static void RGSS_Input_FocusCallback(GLFWwindow *window, int focused)
@@ -428,8 +413,8 @@ void RGSS_Input_Init(GLFWwindow *window)
     glfwSetScrollCallback(window, RGSS_Input_ScrollCallback);
     glfwSetWindowFocusCallback(window, RGSS_Input_FocusCallback);
 
-    RGSS_GAME.input.bindings = NULL;
-    RGSS_GAME.input.cursor = NULL;
+    RGSS_INPUT.bindings = NULL;
+    RGSS_INPUT.cursor = NULL;
     RGSS_Input_Clear(rb_mInput);
 
     char *mappings = getenv("SDL_GAMECONTROLLERCONFIG");
@@ -453,8 +438,8 @@ void RGSS_Input_Deinit(GLFWwindow *window)
     glfwSetScrollCallback(window, NULL);
     glfwSetWindowFocusCallback(window, NULL);
     
-    RGSS_GAME.input.bindings = NULL;
-    RGSS_GAME.input.cursor = NULL;
+    RGSS_INPUT.bindings = NULL;
+    RGSS_INPUT.cursor = NULL;
     RGSS_Input_Clear(rb_mInput);
 }
 
@@ -535,12 +520,13 @@ static VALUE RGSS_Input_HideCursor(VALUE input, VALUE value)
     return Qnil;
 }
 
-static VALUE RGSS_Input_GetCursor(VALUE input)
+static inline void RGSS_Input_UpdateCursor(void)
 {
-    RGSS_ASSERT_GAME;
+    if (RGSS_INPUT.cursor_valid)
+        return;
+
     double x, y;
     glfwGetCursorPos(RGSS_GAME.window, &x, &y);
-
 
     RGSS_Rect viewport = RGSS_GAME.graphics.viewport;
     vec3 vec;
@@ -550,10 +536,29 @@ static VALUE RGSS_Input_GetCursor(VALUE input)
 
     float vp[4] = { viewport.x, viewport.y, viewport.width, viewport.height };
     glm_unproject(cursor, RGSS_GAME.graphics.projection, vp, vec);
-    
-    // TODO: Cache this to not repeat for same frame?
 
-    return RGSS_Point_New((int) roundf(vec[0]), (int) roundf(vec[1]));
+    RGSS_INPUT.cursor_position.x = (int) roundf(vec[0]);
+    RGSS_INPUT.cursor_position.y = (int) roundf(vec[1]);
+    RGSS_INPUT.cursor_valid = true;
+}
+
+static VALUE RGSS_Input_GetCursorX(VALUE input)
+{
+    RGSS_Input_UpdateCursor();
+    return INT2NUM(RGSS_INPUT.cursor_position.x);
+}
+
+static VALUE RGSS_Input_GetCursorY(VALUE input)
+{
+    RGSS_Input_UpdateCursor();
+    return INT2NUM(RGSS_INPUT.cursor_position.y);
+}
+
+static VALUE RGSS_Input_GetCursor(VALUE input)
+{
+    RGSS_ASSERT_GAME;
+    RGSS_Input_UpdateCursor();
+    return Data_Wrap_Struct(rb_cPoint, NULL, RUBY_NEVER_FREE, &RGSS_INPUT.cursor_position);
 }
 
 static VALUE RGSS_Input_HitTest(int argc, VALUE *argv, VALUE input)
@@ -603,12 +608,12 @@ static VALUE RGSS_Input_SetCursorImage(int argc, VALUE *argv, VALUE input)
         }
     }
 
-    if (RGSS_GAME.input.cursor)
+    if (RGSS_INPUT.cursor)
     {
-        glfwDestroyCursor(RGSS_GAME.input.cursor);
+        glfwDestroyCursor(RGSS_INPUT.cursor);
     }
 
-    RGSS_GAME.input.cursor = cursor;
+    RGSS_INPUT.cursor = cursor;
     glfwSetCursor(RGSS_GAME.window, cursor);
 
     return source;
@@ -631,7 +636,6 @@ void RGSS_Init_Input(VALUE parent)
     rb_define_singleton_methodm1(rb_mInput, "hit_test", RGSS_Input_HitTest, -1);
 
     VALUE singleton = rb_singleton_class(rb_mInput);
-
     rb_define_alias(singleton, "press?", "down?");
     rb_define_alias(singleton, "none?", "up?");
 

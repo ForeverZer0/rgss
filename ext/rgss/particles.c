@@ -47,11 +47,12 @@ typedef struct
     float rotation;   /** The rotation to be applied each tick. */
     float angle;      /** The current angle of rotation, in degrees. */
     float fade;       /** The amount of opacity change to apply each tick. */
-    float opacity;
+    float opacity;    /** The current opacity as a float. */
+    int depth;        /** The depth of particle, used for determining render order; */
 } RGSS_Particle;
 
 /**
- * @brief
+ * @brief Structure holding all the configuration on how particles will be emitted.
  */
 typedef struct
 {
@@ -62,11 +63,11 @@ typedef struct
     {
         VALUE value; /** The Ruby value of the texture. */
         GLuint id;   /** The OpenGL name of the texture. */
+        vec2 size;
     } texture;
     GLuint count;             /** The number of particles that are "alive" and in use. */
     GLushort capacity;        /** The maximum number of particles the emitter uses. */
     GLuint last_used;         /** The index of the last used particle, used for search optimizations. */
-    RGSS_Range lifespan;      /** A range determining the number of ticks particles will exist for. */
     RGSS_Particle *particles; /** An array of particles structures. */
     GLfloat *quads;           /** A CPU buffer containing the offset/size for particles. */
     GLubyte *colors;          /** A CPU buffer containing particle colors. */
@@ -74,19 +75,22 @@ typedef struct
     GLuint quad_vbo;          /** The VBO containing the offsets and sizes of the particles. */
     GLuint color_vbo;         /** The VBO containing the colors of the particles. */
     GLuint angle_vbo;         /** The VBO containing the angles of the particles. */
-
-    RGSS_Range direction; /** A range determining the initial direction (in degrees) of particles. */
-    RGSS_Range size;
-    RGSS_Range fade;     /** The speed at which a particle loses opacity. */
+    RGSS_Range lifespan;      /** A range determining the number of ticks particles will exist for. */
+    RGSS_Range direction;     /** A range determining the initial direction (in degrees) of particles. */
+    RGSS_Range size;          /** A range indicating the initial size of particles. */
+    RGSS_Range fade;          /** A range indicating the speed at which particles lose opacity. */
     RGSS_Range rotation; /** A range determining the amount of rotation (in degrees) that particles will have applied.*/
     RGSS_Range growth;   /** The amount of scaling to apply through the particles lifetime. */
     RGSS_Range force;    /** A range determing the amount of force particles will initially have. */
     RGSS_Range rate;     /** A range determining the number of particles to spawn each game tick. */
-    vec2 friction;       /** The amount of "inverse" of the particle's force and decreases it velocity. */
-    float radius;        /** The radius from the emitter's postion that particles will spawn. */
-    float gravity;       /** The amount of force applied on the y-axis. */
-    float wind;          /** The amount of force applied on the x-axis. */
-    int paused;
+    RGSS_Range frequency; /** A range indicating the number of ticks between each emission. */
+    vec2 friction;        /** The amount of "inverse" of the particle's force and decreases it velocity. */
+    float radius;         /** The radius from the emitter's postion that particles will spawn. */
+    float gravity;        /** The amount of force applied on the y-axis. */
+    float wind;           /** The amount of force applied on the x-axis. */
+    int paused;           /** Flag indicating if emitter has been suspended from creating new particles. */
+    int order;            /** The amount to change on the z-axis each tick to determine render ordering. */
+    int interval;         /** The number of ticks to wait until the next emission. */
 } RGSS_Emitter;
 
 static inline void RGSS_Range_Parse(VALUE value, RGSS_Range *range)
@@ -138,9 +142,7 @@ static inline float RGSS_Range_Rand(RGSS_Range *range)
 static int RGSS_SortParticle(const void *p1, const void *p2)
 {
     RGSS_Particle *a = (RGSS_Particle *)p1, *b = (RGSS_Particle *)p2;
-    if (a->life <= 0 && b->life <= 0)
-        return 0;
-    return a->life < b->life ? -1 : 0;
+    return a->depth > b->depth;
 }
 
 static VALUE RGSS_Emitter_GetTexture(VALUE self)
@@ -158,13 +160,15 @@ static VALUE RGSS_Emitter_SetTexture(VALUE self, VALUE value)
     {
         RGSS_Texture *tex = DATA_PTR(value);
         e->texture.id = tex->id;
-        e->base.entity.size[0] = (float)tex->width;
-        e->base.entity.size[1] = (float)tex->height;
+        e->texture.size[0] = (float)tex->width;
+        e->texture.size[1] = (float)tex->height;
     }
     else
     {
         e->texture.id = GL_NONE;
-        glm_vec3_zero(e->base.entity.size);
+        glm_vec3_zero(e->texture.size);
+        // for (int i = 0; i < e->count; i++)
+        //     glm_vec2_one(e->particles[i].scale);
     }
     return value;
 }
@@ -183,13 +187,6 @@ static void RGSS_Emitter_Free(void *data)
     if (e->angles)
         xfree(e->angles);
     xfree(data);
-}
-
-static VALUE RGSS_Emitter_SetSize(VALUE self, VALUE value)
-{
-    RGSS_Emitter *e = DATA_PTR(self);
-    RGSS_Range_Parse(value, &e->size);
-    return value;
 }
 
 static void RGSS_Emitter_Mark(void *data)
@@ -270,40 +267,13 @@ static void RGSS_Emitter_VertexSetup(RGSS_Emitter *e, int max)
     glGenVertexArrays(1, &e->base.vao);
     glBindVertexArray(e->base.vao);
 
-    // Initialize VBO for static vertex data for billboard
-    glGenBuffers(1, &e->base.vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, e->base.vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(RGSS_QUAD_VERTICES), RGSS_QUAD_VERTICES, GL_STATIC_DRAW);
-
-    // Create EBO
-    glGenBuffers(1, &e->base.ebo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, e->base.ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(RGSS_QUAD_INDICES), RGSS_QUAD_INDICES, GL_STATIC_DRAW);
-
-    // Initialize empty VBO to contain particle quads.
-    glGenBuffers(1, &e->quad_vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, e->quad_vbo);
-    glBufferData(GL_ARRAY_BUFFER, PARTICLE_QUAD_SIZE * e->capacity, NULL, GL_STREAM_DRAW);
-
-    // Confirm the VBO was created successfully
-    GLint bufsize;
-    glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &bufsize);
-    if (bufsize != PARTICLE_QUAD_SIZE * e->capacity)
-        rb_raise(rb_eRGSSError, "GPU memory allocation failed");
-
-    // Initialize empty VBO to contain particle colors.
-    glGenBuffers(1, &e->color_vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, e->color_vbo);
-    glBufferData(GL_ARRAY_BUFFER, PARTICLE_COLOR_SIZE * e->capacity, NULL, GL_STREAM_DRAW);
-
-    // Confirm the VBO was created successfully
-    glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &bufsize);
-    if (bufsize != PARTICLE_COLOR_SIZE * e->capacity)
-        rb_raise(rb_eRGSSError, "GPU memory allocation failed");
-
-    glGenBuffers(1, &e->angle_vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, e->angle_vbo);
-    glBufferData(GL_ARRAY_BUFFER, SIZEOF_FLOAT * e->capacity, NULL, GL_STREAM_DRAW);
+    // Create buffers
+    e->base.vbo = RGSS_CreateBuffer(GL_ARRAY_BUFFER, sizeof(RGSS_QUAD_VERTICES), RGSS_QUAD_VERTICES, GL_STATIC_DRAW);
+    e->base.ebo =
+        RGSS_CreateBuffer(GL_ELEMENT_ARRAY_BUFFER, sizeof(RGSS_QUAD_INDICES), RGSS_QUAD_INDICES, GL_STATIC_DRAW);
+    e->quad_vbo = RGSS_CreateBuffer(GL_ARRAY_BUFFER, PARTICLE_QUAD_SIZE * e->capacity, NULL, GL_STREAM_DRAW);
+    e->color_vbo = RGSS_CreateBuffer(GL_ARRAY_BUFFER, PARTICLE_COLOR_SIZE * e->capacity, NULL, GL_STREAM_DRAW);
+    e->angle_vbo = RGSS_CreateBuffer(GL_ARRAY_BUFFER, SIZEOF_FLOAT * e->capacity, NULL, GL_STREAM_DRAW);
 
     // Configure static vertex data layout
     glEnableVertexAttribArray(0);
@@ -454,13 +424,11 @@ static inline void RGSS_Emitter_RenewParticle(RGSS_Emitter *e, RGSS_Particle *p)
     float r = e->radius * sqrtf(RGSS_Rand());
     p->position[0] = e->base.entity.position[0] + (r * cosf(a));
     p->position[1] = e->base.entity.position[1] + (r * sinf(a));
+    p->depth = 0;
 
     // Configure initial speed and direction
     float direction = glm_rad(RGSS_Range_Rand(&e->direction));
     float speed = RGSS_Range_Rand(&e->force);
-    // p->velocity[0] = RGSS_FastSin(direction) * speed;
-    // p->velocity[1] = RGSS_FastCos(direction) * speed;
-
     p->velocity[0] = sinf(direction) * speed;
     p->velocity[1] = cosf(direction) * speed;
 
@@ -470,8 +438,8 @@ static inline void RGSS_Emitter_RenewParticle(RGSS_Emitter *e, RGSS_Particle *p)
 
     if (e->texture.id != 0)
     {
-        p->scale[0] = sz / e->base.entity.size[0];
-        p->scale[1] = sz / e->base.entity.size[1];
+        p->scale[0] = sz / e->texture.size[0];
+        p->scale[1] = sz / e->texture.size[1];
     }
     else
     {
@@ -501,22 +469,35 @@ static VALUE RGSS_Emitter_SetSpectrum(VALUE self, VALUE value)
     return value;
 }
 
+static inline void RGSS_Emitter_Emit(RGSS_Emitter *e)
+{
+    if (e->paused)
+        return;
+
+    if (e->interval > 0)
+    {
+        e->interval--;
+        return;
+    }
+
+    if (e->interval == 0)
+        e->interval = (int)RGSS_Range_Rand(&e->frequency);
+
+    int count = (int)RGSS_Range_Rand(&e->rate);
+    for (int i = 0; i < count; i++)
+    {
+        GLuint index = RGSS_Emitter_GetIndex(e);
+        RGSS_Emitter_RenewParticle(e, &e->particles[index]);
+    }
+}
+
 static VALUE RGSS_Emitter_Update(VALUE self, VALUE delta)
 {
     rb_call_super(1, &delta);
 
     RGSS_Emitter *e = DATA_PTR(self);
     float d = NUM2FLT(delta);
-
-    if (!e->paused)
-    {
-        int gen_count = (int)RGSS_Range_Rand(&e->rate);
-        for (int i = 0; i < gen_count; i++)
-        {
-            GLuint index = RGSS_Emitter_GetIndex(e);
-            RGSS_Emitter_RenewParticle(e, &e->particles[index]);
-        }
-    }
+    RGSS_Emitter_Emit(e);
 
     RGSS_Particle *p;
     int count = 0;
@@ -530,7 +511,7 @@ static VALUE RGSS_Emitter_Update(VALUE self, VALUE delta)
 
             // Fade out.
             p->opacity -= p->fade * d;
-            p->color[3] = (unsigned char) ceilf(p->opacity);
+            p->color[3] = (unsigned char)ceilf(p->opacity);
 
             // Early out of this iteration has 0 opacity or scales to nothing
             if (p->opacity < FLT_EPSILON || p->scale[0] < FLT_EPSILON || p->scale[1] < FLT_EPSILON)
@@ -542,10 +523,15 @@ static VALUE RGSS_Emitter_Update(VALUE self, VALUE delta)
             // Rotate.
             p->angle += p->rotation * d;
 
-            p->velocity[0] *= 1.0 - e->friction[0] * d;
-            p->velocity[1] *= 1.0 - e->friction[1] * d;
+            // Normalize friction to game delta
+            p->velocity[0] *= 1.0f - ((e->friction[0] * d) / RGSS_GAME.time.tps);
+            p->velocity[1] *= 1.0f - ((e->friction[1] * d) / RGSS_GAME.time.tps);
+
             p->velocity[0] += e->wind * d;
-            p->velocity[1] += e->gravity * d; // TOOD: Combine with above
+            p->velocity[1] += e->gravity * d;
+
+            // Move on Z-axis to determine draw order.
+            p->depth += e->order;
 
             // Translate
             glm_vec3_muladds(p->velocity, d, p->position);
@@ -605,6 +591,7 @@ static VALUE RGSS_Emitter_SetRadius(VALUE self, VALUE value)
     {
         e->radius = NUM2FLT(value);
     }
+    glm_vec2_fill(e->base.entity.size, e->radius * 2);
     return value;
 }
 
@@ -615,6 +602,8 @@ EMITTER_GET_RANGE(Rate, rate)
 EMITTER_GET_RANGE(Growth, growth)
 EMITTER_GET_RANGE(Fade, fade)
 EMITTER_GET_RANGE(Rotation, rotation)
+EMITTER_GET_RANGE(Frequency, frequency)
+EMITTER_GET_RANGE(ParticleSize, size)
 
 EMITTER_SET_RANGE(Lifespan, lifespan)
 EMITTER_SET_RANGE(Force, force)
@@ -622,6 +611,12 @@ EMITTER_SET_RANGE(Rate, rate)
 EMITTER_SET_RANGE(Growth, growth)
 EMITTER_SET_RANGE(Fade, fade)
 EMITTER_SET_RANGE(Rotation, rotation)
+EMITTER_SET_RANGE(Frequency, frequency)
+EMITTER_SET_RANGE(ParticleSize, size)
+
+ATTR_READER(RGSS_Emitter, Interval, interval, INT2NUM)
+ATTR_READER(RGSS_Emitter, Capacity, capacity, INT2NUM)
+ATTR_ACCESSOR(RGSS_Emitter, Order, order, INT2NUM, NUM2INT)
 
 static VALUE RGSS_Emitter_SetDirection(VALUE self, VALUE value)
 {
@@ -649,6 +644,21 @@ static VALUE RGSS_Emitter_SetFriction(VALUE self, VALUE value)
     return value;
 }
 
+static int RGSS_Emitter_KeyParse(VALUE key, VALUE value, VALUE self)
+{
+    if (rb_type(key) != T_SYMBOL)
+        return ST_CONTINUE;
+
+    VALUE symname = rb_sym2str(key);
+    VALUE name = rb_sprintf("%s=", StringValueCStr(symname));
+
+    ID id = rb_intern_str(name);
+    if (rb_respond_to(self, id))
+        rb_funcall2(self, id, 1, &value);
+
+    return ST_CONTINUE;
+}
+
 static VALUE RGSS_Emitter_Initialize(int argc, VALUE *argv, VALUE self)
 {
     VALUE max, viewport, texture, opts;
@@ -662,15 +672,16 @@ static VALUE RGSS_Emitter_Initialize(int argc, VALUE *argv, VALUE self)
         e->viewport = viewport;
 
     // Set some sane defaults
-    e->radius = 3.0f;
+    e->radius = 1.0f;
     e->capacity = NUM2INT(max);
-    int tps = (int)(1.0 / RGSS_GAME.time.target_tps);
-    e->lifespan = (RGSS_Range){tps * 3, tps * 5};
+    e->lifespan = (RGSS_Range){RGSS_GAME.time.tps * 3, RGSS_GAME.time.tps * 5};
     e->force = (RGSS_Range){10, 100};
-    e->gravity = 9.81f;
-    e->rate = (RGSS_Range){tps, tps};
-    e->size = (RGSS_Range){1.0f, 4.0f};
+    e->rate = (RGSS_Range){3, 5};
+    e->size = (RGSS_Range){1.0f, 1.0f};
     e->direction = (RGSS_Range){0.0f, 360.0f};
+    e->interval = -1;
+    e->frequency = (RGSS_Range){-1.0f, -1.0f};
+    e->order = -1;
 
     // Initialize buffers
     e->particles = RGSS_Emitter_CreateStorage(e, sizeof(RGSS_Particle));
@@ -680,11 +691,12 @@ static VALUE RGSS_Emitter_Initialize(int argc, VALUE *argv, VALUE self)
 
     RGSS_Emitter_VertexSetup(e, e->capacity);
 
+    if (RTEST(opts))
+        rb_hash_foreach(opts, RGSS_Emitter_KeyParse, self);
+
     if (rb_block_given_p())
-    {
-        // Makes setting to a variable a little more elegant.
         rb_yield(self);
-    }
+
     return self;
 }
 
@@ -708,6 +720,16 @@ static VALUE RGSS_Emitter_IsPaused(VALUE self)
     return RB_BOOL(e->paused);
 }
 
+static VALUE RGSS_Emitter_FullScreen(VALUE self)
+{
+    RGSS_Emitter *e = DATA_PTR(self);
+    float hypot = glm_vec2_norm(RGSS_GRAPHICS.resolution);
+    e->radius = hypot * 0.5f;
+    glm_vec2_fill(e->base.entity.size, hypot);
+    glm_vec2_scale(RGSS_GRAPHICS.resolution, 0.5f, e->base.entity.position);
+    return self;
+}
+
 void RGSS_Init_Particles(VALUE parent)
 {
     rb_cEmitter = rb_define_class_under(rb_mRGSS, "Emitter", rb_cRenderable);
@@ -727,14 +749,21 @@ void RGSS_Init_Particles(VALUE parent)
     DEFINE_ACCESSOR(rb_cEmitter, RGSS_Emitter, Fade, "fade");
     DEFINE_ACCESSOR(rb_cEmitter, RGSS_Emitter, Growth, "growth");
     DEFINE_ACCESSOR(rb_cEmitter, RGSS_Emitter, Direction, "direction");
+    DEFINE_ACCESSOR(rb_cEmitter, RGSS_Emitter, Frequency, "frequency");
+    DEFINE_ACCESSOR(rb_cEmitter, RGSS_Emitter, ParticleSize, "particle_size");
+    DEFINE_ACCESSOR(rb_cEmitter, RGSS_Emitter, Order, "order");
 
+    rb_define_method0(rb_cEmitter, "capacity", RGSS_Emitter_GetCapacity, 0);
+    rb_define_method0(rb_cEmitter, "interval", RGSS_Emitter_GetInterval, 0);
     rb_define_method0(rb_cEmitter, "pause", RGSS_Emitter_Pause, 0);
     rb_define_method0(rb_cEmitter, "paused?", RGSS_Emitter_IsPaused, 0);
     rb_define_method0(rb_cEmitter, "resume", RGSS_Emitter_Resume, 0);
     rb_define_method0(rb_cEmitter, "dispose", RGSS_Emitter_Dispose, 0);
     rb_define_method1(rb_cEmitter, "update", RGSS_Emitter_Update, 1);
     rb_define_method1(rb_cEmitter, "render", RGSS_Emitter_Render, 1);
-    rb_define_method1(rb_cEmitter, "size=", RGSS_Emitter_SetSize, 1);
+    rb_define_method0(rb_cEmitter, "fullscreen", RGSS_Emitter_FullScreen, 0);
 
     rb_define_const(rb_cEmitter, "EARTH_GRAVITY", DBL2NUM(9.81));
+    rb_define_const(rb_cEmitter, "ORDER_YOUNGEST", INT2NUM(-1));
+    rb_define_const(rb_cEmitter, "ORDER_OLDEST", INT2NUM(1));
 }
