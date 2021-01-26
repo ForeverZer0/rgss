@@ -1,7 +1,6 @@
 #include "game.h"
 
 VALUE rb_cMat4;
-VALUE rb_cMat3; // TODO
 
 CREATE_ALLOC_FUNC(mat4, RGSS_MAT4_ALIGN, RGSS_MAT4_SIZE)
 
@@ -10,14 +9,14 @@ static VALUE mat4_get(int argc, VALUE *argv, VALUE self)
     VALUE x, y;
     rb_scan_args(argc, argv, "11", &x, &y);
 
-
+    // TODO
     return Qnil;
 }
 
 static VALUE mat4_set(int argc, VALUE *argv, VALUE self)
 {
 
-
+    // TODO
     return self;
 }
 
@@ -102,44 +101,6 @@ static VALUE mat4_multiply(VALUE self, VALUE other)
     }
 
     rb_raise(rb_eTypeError, "%s is not a Mat4 or Vec4", CLASS_NAME(other));
-}
-
-static VALUE mat4_test(VALUE self, VALUE position, VALUE angle, VALUE pivot, VALUE scale, VALUE velocity, VALUE size, VALUE delta)
-{
-    vec3 axis = { 0.0f, 0.0f, 1.0f };
-
-    vec4 *mat = DATA_PTR(self);
-    float *pos = DATA_PTR(position);
-    float radians = NUM2FLT(angle);
-    float *piv = DATA_PTR(pivot);
-    float *vel = DATA_PTR(velocity);
-
-    //   # @model.create_rotation!(@pivot + @position, @angle, AXIS)
-    //   # @model.translate!(@position)
-    //   # @model.scale!(@scale * @size)
-
-    vec3 zoom;
-    glm_vec3_mul(DATA_PTR(scale), DATA_PTR(size), zoom);
-
-    vec3 speed;
-    glm_vec3_scale(vel, NUM2FLT(delta), speed);
-    glm_vec3_add(pos, speed, pos);
-
-
-    vec3 point;
-    glm_vec3_add(piv, pos, point);
-
-    glm_rotate_atm(mat, point, radians, axis);
-    glm_translate(mat, pos);
-    glm_scale(mat, zoom);
-
-
-    
-
-    
-
-    return self;
-
 }
 
 static VALUE mat4_rotate(VALUE self, VALUE pivot, VALUE angle, VALUE axis)
@@ -246,14 +207,11 @@ static VALUE mat4_lookat(VALUE klass, VALUE eye, VALUE center, VALUE up)
 
 void RGSS_Init_Mat4(VALUE parent)
 {
-    rb_cMat4 = rb_define_class_under(parent, "Mat3", rb_cObject); // TODO
     rb_cMat4 = rb_define_class_under(parent, "Mat4", rb_cObject);
     rb_define_alloc_func(rb_cMat4, mat4_alloc);
 
     rb_define_methodm1(rb_cMat4, "[]", mat4_get, -1);
     rb_define_methodm1(rb_cMat4, "[]=", mat4_set, -1);
-
-    rb_define_method7(rb_cMat4, "test!", mat4_test, 7);
 
     rb_define_method4(rb_cMat4, "initialize", mat4_initialize, 4);
     rb_define_method0(rb_cMat4, "inspect", mat4_inspect, 0);

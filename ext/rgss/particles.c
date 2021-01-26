@@ -133,8 +133,9 @@ static inline float RGSS_Range_Rand(RGSS_Range *range)
 {
     if (isfinite(range->min) && isfinite(range->max))
     {
-        float deviation = (range->max - range->min) * 0.5f;
-        return range->min + deviation + RGSS_Rand() * deviation - RGSS_Rand() * deviation;
+        return (RGSS_Rand() * (range->max - range->min)) + range->min;
+        // float deviation = (range->max - range->min) * 0.5f;
+        // return range->min + deviation + RGSS_Rand() * deviation - RGSS_Rand() * deviation;
     }
     return range->max;
 }

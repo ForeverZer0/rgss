@@ -3,6 +3,10 @@
 
 VALUE rb_cTexture;
 
+vec4 RGSS_VEC4_ZERO;
+mat4 RGSS_BLIT_MODEL;
+
+
 #define RGSS_TEXTURE_OPTS "@default_options"
 #define RGSS_ASSERT_TEXTURE(texture)                                                                                   \
     if ((texture)->id == 0)                                                                                            \
@@ -253,6 +257,235 @@ static VALUE RGSS_Texture_ToImage(VALUE self)
     return RGSS_Image_New(tex->width, tex->height, pixels);
 }
 
+#define RGSS_SHADER RGSS_GAME.graphics.shader
+
+static void RGSS_Texture_BlitImpl(RGSS_Texture *dst, RGSS_Texture *src, RGSS_Rect *src_rect, RGSS_Rect *dst_rect, float opacity)
+{
+    if (dst_rect->width < 1 || dst_rect->height < 1)
+        return;
+    RGSS_SizeNotEmpty(src_rect->width, src_rect->height);
+
+    // Setup geometry of rendering area
+    int x = dst_rect->x;
+    int y = dst_rect->y;
+    int w = dst_rect->width;
+    int h = dst_rect->height;
+
+    mat4 mat;
+    glm_ortho(x, x + w, y, y + h, -1.0f, 1.0f, mat);
+    glBindBuffer(GL_UNIFORM_BUFFER, RGSS_GAME.graphics.ubo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, RGSS_MAT4_SIZE, mat);
+    glViewport(x, y, w, h);
+    glScissor(x, y, w, h);
+
+    GLfloat l, t, r, b;
+    l = (GLfloat) src_rect->x / src->width;
+    t = (GLfloat) src_rect->y / src->height;
+    r = (GLfloat) src_rect->width /  src->width;
+    b = (GLfloat) src_rect->height / src->height;
+    
+    GLfloat vertices[] =
+    {
+        0.0f, 1.0f, l, b, // Bottom-Left
+        1.0f, 0.0f, r, t, // Top-Right
+        0.0f, 0.0f, l, t, // Top-Left
+        1.0f, 1.0f, r, b, // Bottom-Right
+    };
+    glBindBuffer(GL_ARRAY_BUFFER, RGSS_BLIT_VBO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+
+    // Bind the framebuffer of the texture to render to, then bind source texture to render
+    RGSS_Texture_BindFramebuffer(dst);
+    vec3 scale = { src_rect->width, src_rect->height, 0 };
+    glm_scale_make(RGSS_BLIT_MODEL, scale);
+
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glUseProgram(RGSS_SHADER.id);
+    glUniformMatrix4fv(RGSS_SHADER.model, 1, GL_FALSE, RGSS_BLIT_MODEL);
+    glUniform4fv(RGSS_SHADER.color, 1, RGSS_VEC4_ZERO);
+    glUniform4fv(RGSS_SHADER.tone,  1, RGSS_VEC4_ZERO);
+    glUniform4fv(RGSS_SHADER.flash, 1, RGSS_VEC4_ZERO);
+    glUniform1f(RGSS_SHADER.hue, 0.0f);
+    glUniform1f(RGSS_SHADER.opacity, opacity); // TODO
+
+    // Render 
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, src->id);
+    glBindVertexArray(RGSS_BLIT_VAO);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_BYTE, NULL);
+
+    // Restore rendering to screen 
+    RGSS_Graphics_Restore(rb_mGraphics);
+}
+
+static VALUE RGSS_Dexture_DrawText(int argc, VALUE *argv, VALUE self)
+{
+    VALUE a0, a1, a2, a3, a4, opts;
+    rb_scan_args(argc, argv, "23:", &a0, &a1, &a2, &a3, &a4, &opts);
+
+    RGSS_Rect dst_rect, src_rect;
+    VALUE text;
+
+    switch (argc)
+    {
+        case 2:
+        {
+            if (rb_obj_is_kind_of(a0, rb_cRect) != Qtrue)
+                rb_raise(rb_eArgError, "%s is not a Rect", CLASS_NAME(a0));
+            memcpy(&dst_rect, DATA_PTR(a0), sizeof(RGSS_Rect));
+            text = a1;
+            break;
+        }
+        case 3:
+        {
+            if (rb_obj_is_kind_of(a0, rb_cIVec2) != Qtrue)
+                rb_raise(rb_eArgError, "%s is not a Point", CLASS_NAME(a0));
+            if (rb_obj_is_kind_of(a0, rb_cIVec2) != Qtrue)
+                rb_raise(rb_eArgError, "%s is not a Size", CLASS_NAME(a1));
+            memcpy(&dst_rect.location, DATA_PTR(a0), sizeof(RGSS_Point));
+            memcpy(&dst_rect.size, DATA_PTR(a1), sizeof(RGSS_Size));
+            text = a3;
+            break;
+        }
+        case 5:
+        {
+            dst_rect.x = NUM2INT(a0);
+            dst_rect.y = NUM2INT(a1);
+            dst_rect.width = NUM2INT(a2);
+            dst_rect.height = NUM2INT(a3);
+            text = a4;
+            break; 
+        }
+        default: rb_raise(rb_eArgError, "wrong number of arguments (given %d, expected 2, 3, or 5)", argc);
+    }
+
+    RGSS_SizeNotEmpty(dst_rect.width, dst_rect.height);
+    // src_rect = (RGSS_Rect) 
+
+    // TODO: Parse opts, use vertical aligm, measure first, place appropriatly on image
+
+    return self;
+}
+
+static VALUE RGSS_Texture_Blit(int argc, VALUE *argv, VALUE self)
+{
+    
+    // Quite a few argument combinations can be supplied.
+    //
+    // The first "section" of arguments can be any combination that make either a point, or a rectangle,
+    // for the destination to copy to. so (x, y), (point), (point, size), (rect), (x, y, width, height).
+    //
+    // The second section is the source texture to be copied. It serves as the marker where sections begin/end.
+    // 
+    // The third section is the source coordinates to copy from, which can be either none (entire texture), or rectangle.
+    //
+    // Finally there is an optional opacity to apply.
+
+
+    int tex_index = -1;
+    for (int i = 0; i < argc; i++)
+    {
+        if (rb_obj_is_kind_of(argv[i], rb_cTexture))
+        {
+            tex_index = i;
+            break;
+        }
+    }
+
+    if (tex_index == -1)
+        rb_raise(rb_eArgError, "invalid arguments");
+
+    float opacity;
+    RGSS_Texture *src = DATA_PTR(argv[tex_index]), *dst = DATA_PTR(self);
+    RGSS_Rect dst_rect, src_rect;
+
+    // Parse destination rect out of arguments
+    switch (tex_index)
+    {
+        case 1:
+        {
+            // (point)
+            if (rb_obj_is_kind_of(argv[0], rb_cIVec2))
+            {
+                memcpy(&dst_rect.location, DATA_PTR(argv[0]), sizeof(RGSS_Point));
+                dst_rect.width = src->width;
+                dst_rect.height = src->height;
+            }
+            // (rect)
+            else if (rb_obj_is_kind_of(argv[0], rb_cRect))
+                memcpy(&dst_rect, DATA_PTR(argv[0]), sizeof(RGSS_Rect));
+            else 
+                rb_raise(rb_eTypeError, "given %s, expected Point or Rect", CLASS_NAME(argv[0]));
+            break;
+        }
+        case 2:
+        {
+            // (point, size)
+            if (rb_obj_is_kind_of(argv[0], rb_cIVec2))
+            {
+                memcpy(&dst_rect.location, DATA_PTR(argv[0]), sizeof(RGSS_Point));
+                memcpy(&dst_rect.size, DATA_PTR(argv[1]), sizeof(RGSS_Size));
+            }
+            // (x, y)
+            else
+            {
+                dst_rect.x = NUM2INT(argv[0]);
+                dst_rect.y = NUM2INT(argv[1]);
+                dst_rect.width = src->width;
+                dst_rect.height = src->height;
+            }
+            break;
+        }
+        case 4:
+        {
+            // (x, y, w, h)
+            dst_rect.x = NUM2INT(argv[0]);
+            dst_rect.y = NUM2INT(argv[1]);
+            dst_rect.width = NUM2INT(argv[2]);
+            dst_rect.height = NUM2INT(argv[3]);
+            break;
+        }
+        default: rb_raise(rb_eArgError, "invalid arguments");
+    }
+
+    int last = argc - tex_index - 1;
+    switch (last)
+    {
+        case 0:
+        {
+            src_rect = (RGSS_Rect) { 0, 0, src->width, src->height };
+            opacity = 1.0f;
+            break;
+        }
+        case 1:
+        {
+            if (rb_obj_is_kind_of(argv[tex_index + 1], rb_cRect))
+            {
+                memcpy(&src_rect, DATA_PTR(argv[tex_index + 1]), sizeof(RGSS_Rect));
+                opacity = 1.0f;
+            }
+            else
+            {
+                src_rect = (RGSS_Rect) { 0, 0, src->width, src->height };
+                opacity = glm_clamp(NUM2FLT(argv[tex_index + 1]), 0.0f, 1.0f);
+            }
+            break;
+        }
+        case 2:
+        {
+            memcpy(&src_rect, DATA_PTR(argv[tex_index + 1]), sizeof(RGSS_Rect));
+            opacity = glm_clamp(NUM2FLT(argv[tex_index + 1]), 0.0f, 1.0f);
+            break;
+        }
+        default: rb_raise(rb_eArgError, "invalid arguments");
+    }
+
+    RGSS_Texture_BlitImpl(dst, src, &src_rect, &dst_rect, opacity);
+    return self;
+}
+
 static VALUE RGSS_Texture_Target(int argc, VALUE *argv, VALUE self)
 {
     VALUE area;
@@ -373,14 +606,20 @@ void RGSS_Init_Texture(VALUE parent)
     rb_define_method0(rb_cTexture, "rect", RGSS_Texture_GetRect, 0);
     rb_define_methodm1(rb_cTexture, "bind", RGSS_Texture_Bind, -1);
     rb_define_methodm1(rb_cTexture, "target", RGSS_Texture_Target, -1);
+    rb_define_methodm1(rb_cTexture, "blit", RGSS_Texture_Blit, -1);
+
 
     rb_define_method0(rb_cTexture, "clear", RGSS_Texture_Clear, 0);
     rb_define_methodm1(rb_cTexture, "fill_rect", RGSS_Texture_FillRect, -1);
 
     rb_define_alias(rb_cTexture, "bounds", "rect");
+    rb_define_alias(rb_cTexture, "blt", "blit");
 
     rb_define_singleton_methodm1(rb_cTexture, "load", RGSS_Texture_Load, -1);
     rb_define_singleton_method0(rb_cTexture, "default_options", RGSS_Texture_GetDefaultOptions, 0);
     rb_define_singleton_method1(rb_cTexture, "unbind", RGSS_Texture_Unbind, 1);
     rb_define_singleton_method3(rb_cTexture, "wrap", RGSS_Texture_FromID, 3);
+
+    glm_vec4_zero(RGSS_VEC4_ZERO);
+    glm_mat4_identity(RGSS_BLIT_MODEL);
 }

@@ -7,6 +7,10 @@
 typedef struct RGSS_Entity RGSS_Entity;
 typedef struct RGSS_Renderable RGSS_Renderable;
 
+extern GLuint RGSS_BLIT_VAO;
+extern GLuint RGSS_BLIT_VBO;
+extern GLuint RGSS_BLIT_EBO;
+
 #define RGSS_GRAPHICS RGSS_GAME.graphics
 
 typedef struct {

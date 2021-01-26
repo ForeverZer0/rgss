@@ -746,7 +746,6 @@ static VALUE RGSS_Renderable_Render(VALUE self, VALUE alpha)
     glBlendEquation(obj->blend.op);
     glBlendFunc(obj->blend.src, obj->blend.dst);
 
-
     glUseProgram(RGSS_SHADER.id);
     glUniformMatrix4fv(RGSS_SHADER.model, 1, false, obj->entity.model[0]);
     glUniform4fv(RGSS_SHADER.color, 1, obj->color);

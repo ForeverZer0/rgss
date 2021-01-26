@@ -5,6 +5,10 @@ VALUE rb_mGraphics;
 VALUE rb_eGLError;
 VALUE rb_cShader;
 
+GLuint RGSS_BLIT_VAO;
+GLuint RGSS_BLIT_VBO;
+GLuint RGSS_BLIT_EBO;
+
 void RGSS_Graphics_GLCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *msg,
                               const void *data)
 {
@@ -495,6 +499,23 @@ void RGSS_Graphics_Init(GLFWwindow *window, int width, int height, int vsync)
     RGSS_GRAPHICS.particle_shader.opacity = glGetUniformLocation(id, "opacity");
     RGSS_GRAPHICS.particle_shader.textured = glGetUniformLocation(id, "textured");
     RGSS_LogDebug("Successfully compiled and linked particle shader");
+
+    glGenVertexArrays(1, RGSS_BLIT_VAO);
+    glBindVertexArray(RGSS_BLIT_VAO);
+
+    glGenBuffers(1, &RGSS_BLIT_VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, RGSS_BLIT_VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(RGSS_QUAD_VERTICES), NULL, GL_DYNAMIC_DRAW);
+
+    glGenBuffers(1, &RGSS_BLIT_EBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, RGSS_BLIT_EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(RGSS_QUAD_INDICES), RGSS_QUAD_INDICES, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, SIZEOF_FLOAT * 4, NULL);
+    glBindVertexArray(GL_NONE);
+    glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void RGSS_Graphics_Deinit(GLFWwindow *window)

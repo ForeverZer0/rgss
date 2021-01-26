@@ -15,11 +15,17 @@ out vec2 uv;
 
 void main()
 {    
-    // Create a rotation matrix, pivoting on quad center
     float c = cos(angle);
     float s = sin(angle);
     vec2 p = quad.xy + (quad.zw * 0.5);
 
+    // mat4 scale = mat4
+    // (
+    //     quad.z, 0, 0, 0,
+    //     0, quad.w, 0, 0,
+    //     0, 0, 1, 0,
+    //     quad.x, quad.y, 0, 1
+    // );
     // mat4 rotation = mat4
     // (   
     //     c, s, 0, 0,
@@ -28,27 +34,22 @@ void main()
     //     p.x * (1.0 - c) + p.y * s,  p.y * (1.0 - c) - p.x * s, 0, 1
     // );
 
-    // // Create a translation/scale matrix
-    // mat4 scale = mat4
-    // (
-    //     quad.z, 0, 0, 0,
-    //     0, quad.w, 0, 0,
-    //     0, 0, 1, 0,
-    //     quad.x, quad.y, 0, 1
-    // );
-
+    // This is the same as creating a rotation (on a pivot) and model matrix and multiplying them.
+    // It has been reduced into a single operation to reduce the number of operations that need
+    // performed at the cost of readability.
     mat4 model = mat4
-    (   
-        c * quad.z, s, 0, 0,
-        -s, c * quad.w, 0, 0,
+    (
+        quad.z * c, quad.z * s, 0, 0,
+        quad.w * -s, quad.w * c, 0, 0,
         0, 0, 1, 0,
-        quad.x * (p.x * (1.0 - c) + p.y * s),  quad.y * (p.y * (1.0 - c) - p.x * s), 0, 1
+
+        (quad.x * c) + (quad.y * -s) + (1 * (p.x * (1.0 - c) + p.y * s)),
+        (quad.x * s) + (quad.y *  c) + (1 * (p.y * (1.0 - c) - p.x * s)),
+        0,
+        1
     );
 
-
-
     gl_Position = projection * model * vec4(vertex.xy, 0.0, 1.0);
-    // gl_Position = projection * (rotation * scale) * vec4(vertex.xy, 0.0, 1.0);
     uv = vertex.zw;    
     vertex_color = rgba;
 }

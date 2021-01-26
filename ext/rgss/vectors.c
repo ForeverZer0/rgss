@@ -673,13 +673,9 @@ static VALUE vec3_rotate_bang(int argc, VALUE *argv, VALUE self)
             {
                 glm_vec3_rotate_m4(DATA_PTR(a1), v, d);
             }
-            else if (klass == rb_cMat3)
-            {
-                glm_vec3_rotate_m3(DATA_PTR(a1), v, d);
-            }
             else
             {
-                rb_raise(rb_eTypeError, "expected Mat3 or Mat4, recieved %s", CLASS_NAME(a1));
+                rb_raise(rb_eTypeError, "expected Mat4, recieved %s", CLASS_NAME(a1));
             }
             glm_vec3_copy(d, v);
         }
@@ -711,13 +707,9 @@ static VALUE vec3_rotate(int argc, VALUE *argv, VALUE self)
             {
                 glm_vec3_rotate_m4(DATA_PTR(a1), v, d);
             }
-            else if (klass == rb_cMat3)
-            {
-                glm_vec3_rotate_m3(DATA_PTR(a1), v, d);
-            }
             else
             {
-                rb_raise(rb_eTypeError, "expected Mat3 or Mat4, recieved %s", CLASS_NAME(a1));
+                rb_raise(rb_eTypeError, "expected Mat4, recieved %s", CLASS_NAME(a1));
             }
         }
     }

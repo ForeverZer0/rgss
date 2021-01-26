@@ -74,7 +74,6 @@ extern VALUE rb_cRect;
 extern VALUE rb_cVec2;
 extern VALUE rb_cVec3;
 extern VALUE rb_cVec4;
-extern VALUE rb_cMat3; // TODO ?
 extern VALUE rb_cMat4; // TODO
 
 void RGSS_Init_GLFW(VALUE parent);
@@ -222,10 +221,16 @@ static inline void *RGSS_MALLOC_ALIGNED(size_t size, size_t alignment)
     if (rb_obj_frozen_p(value))                                                                                        \
     rb_raise(rb_eFrozenError, "cannot modify frozen %s", CLASS_NAME(self))
 
-void RGSS_ParseRect(int argc, VALUE *argv, RGSS_Rect *rect);
-float RGSS_Rand();
-float RGSS_FastSin(float degrees);
-#define RGSS_FastCos(degrees) RGSS_FastSin((degrees) + 90.0f) // TODO: Remove
+void RGSS_ParseRect(int argc, VALUE *argv, RGSS_Rect *rect); // TODO
+
+/**
+ * @brief Returns a random float between @c 0.0 and @c 1.0 inclusive. RGSS implements
+ * a Xorshift alogorithm (Xoshiro256**) for a much faster and more robust RNG than one
+ * based on using the @c rand function in the standard C library.
+ * 
+ * @return float A value between @c 0.0 and @c 1.0 inclusive.
+ */
+float RGSS_Rand(void);
 
 /**
  * @brief Converts a Ruby VALUE object into a C pointer, accepting multiple Ruby types.
@@ -234,6 +239,7 @@ float RGSS_FastSin(float degrees);
  * to the data pointer when value is a custom type implemented in C.
  *
  * @param[in] value A Ruby object to convert.
+ * @return A pointer to C data representing the object.
  */
 static inline void *RGSS_ValuePointer(VALUE value)
 {
